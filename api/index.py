@@ -10,7 +10,11 @@ if root_dir not in sys.path:
 if backend_dir not in sys.path:
     sys.path.insert(0, backend_dir)
 
+from fastapi.responses import FileResponse
+
 from app.main import app as fastapi_app
+
+index_html_path = os.path.join(root_dir, 'frontend', 'dist', 'index.html')
 
 async def app(scope, receive, send):
     if scope.get("type") == "http":
@@ -20,6 +24,12 @@ async def app(scope, receive, send):
             path = path[13:] or "/"
         elif path.startswith("/api/index"):
             path = path[10:] or "/"
+
+        # Fallback: if root or index.html is routed to backend function and dist/index.html exists
+        if path in ("/", "/index.html") and os.path.exists(index_html_path):
+            response = FileResponse(index_html_path)
+            await response(scope, receive, send)
+            return
         
         # Ensure non-root API calls retain /api prefix expected by router
         if path != "/" and not path.startswith("/api"):
@@ -27,4 +37,5 @@ async def app(scope, receive, send):
             
         scope["path"] = path
     await fastapi_app(scope, receive, send)
+
 
