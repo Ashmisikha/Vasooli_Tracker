@@ -74,7 +74,14 @@ async def add_stock(
 
     watchlist = await get_watchlist(db=db, watchlist_id=watchlist_id, user_id=current_user.id)
     if not watchlist:
-        raise HTTPException(status_code=404, detail="Watchlist not found")
+        user_watchlists = await get_watchlists_by_user(db=db, user_id=current_user.id)
+        if user_watchlists:
+            watchlist = user_watchlists[0]
+            watchlist_id = watchlist.id
+        else:
+            wl_create = WatchlistCreate(name="My Watchlist", description="Default Watchlist")
+            watchlist = await create_watchlist(db=db, watchlist=wl_create, user_id=current_user.id)
+            watchlist_id = watchlist.id
     
     await add_stock_to_watchlist(db=db, watchlist_id=watchlist_id, symbol=sym)
     return {"message": f"Stock {sym} added to watchlist"}
@@ -89,7 +96,12 @@ async def remove_stock(
 ):
     watchlist = await get_watchlist(db=db, watchlist_id=watchlist_id, user_id=current_user.id)
     if not watchlist:
-        raise HTTPException(status_code=404, detail="Watchlist not found")
+        user_watchlists = await get_watchlists_by_user(db=db, user_id=current_user.id)
+        if user_watchlists:
+            watchlist_id = user_watchlists[0].id
+        else:
+            raise HTTPException(status_code=404, detail="Watchlist not found")
     
     await remove_stock_from_watchlist(db=db, watchlist_id=watchlist_id, symbol=symbol.upper())
     return {"message": f"Stock {symbol} removed from watchlist"}
+
