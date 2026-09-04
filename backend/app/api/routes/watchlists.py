@@ -29,23 +29,6 @@ async def read_watchlists(
 ):
     return await get_watchlists_by_user(db=db, user_id=current_user.id)
 
-@router.get("/{watchlist_id}", response_model=WatchlistWithStocksResponse)
-async def read_watchlist(
-    watchlist_id: int,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    watchlist = await get_watchlist(db=db, watchlist_id=watchlist_id, user_id=current_user.id)
-    if not watchlist:
-        raise HTTPException(status_code=404, detail="Watchlist not found")
-    
-    stocks = await get_watchlist_stocks(db=db, watchlist_id=watchlist_id)
-    
-    # We build the response model manually to combine watchlist and stocks
-    response = WatchlistWithStocksResponse.model_validate(watchlist)
-    response.stocks = stocks
-    return response
-
 @router.post("/{watchlist_id}/stocks")
 async def add_stock(
     watchlist_id: int,
@@ -104,4 +87,23 @@ async def remove_stock(
     
     await remove_stock_from_watchlist(db=db, watchlist_id=watchlist_id, symbol=symbol.upper())
     return {"message": f"Stock {symbol} removed from watchlist"}
+
+
+@router.get("/{watchlist_id}", response_model=WatchlistWithStocksResponse)
+async def read_watchlist(
+    watchlist_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    watchlist = await get_watchlist(db=db, watchlist_id=watchlist_id, user_id=current_user.id)
+    if not watchlist:
+        raise HTTPException(status_code=404, detail="Watchlist not found")
+    
+    stocks = await get_watchlist_stocks(db=db, watchlist_id=watchlist_id)
+    
+    # We build the response model manually to combine watchlist and stocks
+    response = WatchlistWithStocksResponse.model_validate(watchlist)
+    response.stocks = stocks
+    return response
+
 
