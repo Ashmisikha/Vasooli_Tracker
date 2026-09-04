@@ -1,5 +1,6 @@
 import sys
 import os
+from urllib.parse import urlparse
 
 # Ensure root and backend directory are in Python path
 root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -24,33 +25,39 @@ def get_index_html_path():
             return p
     return None
 
+def extract_path(val: str) -> str:
+    if not val:
+        return ""
+    val = val.split("?")[0]
+    if val.startswith("http://") or val.startswith("https://"):
+        return urlparse(val).path
+    return val
+
 async def app(scope, receive, send):
     if scope.get("type") == "http":
         headers = dict(scope.get("headers", []))
         
-        forwarded_uri = headers.get(b"x-forwarded-uri", b"").decode("utf-8").split("?")[0]
-        real_url = headers.get(b"x-real-url", b"").decode("utf-8").split("?")[0]
+        forwarded_uri = extract_path(headers.get(b"x-forwarded-uri", b"").decode("utf-8"))
+        real_url = extract_path(headers.get(b"x-real-url", b"").decode("utf-8"))
         raw_path = scope.get("path", "")
         
-        req_path = forwarded_uri or real_url
-        
-        if req_path:
-            is_api = req_path.startswith("/api")
-            target_path = req_path
-        else:
+        target_path = ""
+        if forwarded_uri and (forwarded_uri.startswith("/api") or forwarded_uri not in ["/", "/index.html"]):
+            target_path = forwarded_uri
+        elif real_url and (real_url.startswith("/api") or real_url not in ["/", "/index.html"]):
+            target_path = real_url
+
+        if not target_path or target_path in ["/", "/index.html"]:
             if raw_path.startswith("/api/index.py/"):
                 target_path = raw_path[13:]
             elif raw_path.startswith("/api/index.py"):
-                target_path = raw_path[13:] or "/"
+                target_path = raw_path[13:]
             elif raw_path.startswith("/api/index/"):
                 target_path = raw_path[10:]
-            else:
-                target_path = raw_path
-            is_api = target_path.startswith("/api")
+
+        is_api = bool(target_path and target_path.startswith("/api"))
 
         if is_api:
-            if not target_path.startswith("/api"):
-                target_path = f"/api{target_path}"
             scope["path"] = target_path
             await fastapi_app(scope, receive, send)
             return
