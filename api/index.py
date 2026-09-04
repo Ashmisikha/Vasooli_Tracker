@@ -14,6 +14,18 @@ if backend_dir not in sys.path:
 from fastapi.responses import FileResponse
 from app.main import app as fastapi_app
 
+def get_static_file_path(req_path: str):
+    clean_path = req_path.lstrip("/")
+    candidates = [
+        os.path.join(root_dir, 'frontend', 'dist', clean_path),
+        os.path.join(root_dir, 'dist', clean_path),
+        os.path.join(root_dir, clean_path),
+    ]
+    for p in candidates:
+        if os.path.isfile(p):
+            return p
+    return None
+
 def get_index_html_path():
     candidates = [
         os.path.join(root_dir, 'frontend', 'dist', 'index.html'),
@@ -21,7 +33,7 @@ def get_index_html_path():
         os.path.join(root_dir, 'index.html'),
     ]
     for p in candidates:
-        if os.path.exists(p):
+        if os.path.isfile(p):
             return p
     return None
 
@@ -62,6 +74,14 @@ async def app(scope, receive, send):
             scope["path"] = req_path
             await fastapi_app(scope, receive, send)
             return
+
+        # Check if requesting a static asset file (e.g. /assets/index-xxx.js)
+        if req_path != "/" and req_path != "/index.html":
+            asset_path = get_static_file_path(req_path)
+            if asset_path:
+                response = FileResponse(asset_path)
+                await response(scope, receive, send)
+                return
 
         # Otherwise serve frontend React app (index.html)
         index_path = get_index_html_path()
