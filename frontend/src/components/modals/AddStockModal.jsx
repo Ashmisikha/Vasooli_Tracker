@@ -63,19 +63,19 @@ export default function AddStockModal({ isOpen, onClose, onAddStock, onAdd, onSu
     let symbol = null;
     if (typeof stockItem === 'object' && stockItem && stockItem.symbol) {
       symbol = stockItem.symbol.toUpperCase().trim();
-    } else if (typeof stockItem === 'string') {
+    } else if (typeof stockItem === 'string' && stockItem.trim()) {
+      const trimmed = stockItem.trim().toUpperCase();
       const match = recommendations.find(
-        (r) => r.symbol.toUpperCase() === stockItem.toUpperCase().trim()
+        (r) => r.symbol.toUpperCase() === trimmed
       );
-      if (match) {
-        symbol = match.symbol;
-      }
+      symbol = match ? match.symbol : trimmed;
     }
 
     if (!symbol) {
-      setError('Please select a valid recognized stock from the recommendation list.');
+      setError('Please select or type a valid stock symbol.');
       return;
     }
+
 
     setAddingSymbol(symbol);
     setError(null);
