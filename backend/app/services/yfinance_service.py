@@ -63,6 +63,40 @@ async def get_yf_quote(symbol: str) -> Optional[Dict[str, Any]]:
         except Exception as e:
             print(f"[get_yf_quote error] {sym}: {e}")
             
+    if not sym.endswith(".NS") and not sym.endswith(".BO"):
+        try:
+            url_ns = f"https://query1.finance.yahoo.com/v8/finance/chart/{sym}.NS?interval=1d&range=1d"
+            async with httpx.AsyncClient(headers=HEADERS, timeout=6.0) as client:
+                r = await client.get(url_ns)
+                if r.status_code == 200:
+                    data = r.json()
+                    results = data.get("chart", {}).get("result")
+                    if results and len(results) > 0:
+                        meta = results[0].get("meta", {})
+                        price = meta.get("regularMarketPrice") or meta.get("chartPreviousClose")
+                        prev_close = meta.get("chartPreviousClose", price)
+                        if price is not None:
+                            p = round(float(price), 2)
+                            pc = round(float(prev_close), 2) if prev_close else p
+                            change = round(p - pc, 2)
+                            change_pct = round(((p - pc) / pc) * 100, 2) if pc else 0.0
+                            quote = {
+                                "symbol": f"{sym}.NS",
+                                "name": meta.get("longName") or meta.get("shortName") or sym,
+                                "price": p,
+                                "change": change,
+                                "change_pct": change_pct,
+                                "prev_close": pc,
+                                "high": round(float(meta.get("regularMarketDayHigh", p * 1.01)), 2),
+                                "low": round(float(meta.get("regularMarketDayLow", p * 0.99)), 2),
+                                "volume": meta.get("regularMarketVolume", 1500000),
+                                "currency": "INR"
+                            }
+                            _YF_QUOTE_CACHE[sym] = (now, quote)
+                            return quote
+        except Exception:
+            pass
+
     return None
 
 async def get_yf_history(symbol: str, period: str = "1mo", interval: str = "1d") -> Optional[List[Dict[str, Any]]]:
