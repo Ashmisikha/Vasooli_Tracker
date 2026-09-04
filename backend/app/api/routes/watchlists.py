@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -29,11 +29,14 @@ async def read_watchlists(
 ):
     return await get_watchlists_by_user(db=db, user_id=current_user.id)
 
+@router.post("/stocks")
+@router.post("/stocks/")
+@router.post("/add")
 @router.post("/{watchlist_id}/stocks")
 @router.post("/{watchlist_id}/stocks/")
 async def add_stock(
-    watchlist_id: int,
     stock: WatchlistStockAdd,
+    watchlist_id: int = 1,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -68,14 +71,18 @@ async def add_stock(
             watchlist_id = watchlist.id
     
     await add_stock_to_watchlist(db=db, watchlist_id=watchlist_id, symbol=sym)
-    return {"message": f"Stock {sym} added to watchlist"}
+    return {
+        "success": True,
+        "message": f"Stock {sym} added to watchlist",
+        "symbol": sym
+    }
 
-
+@router.delete("/stocks/{symbol}")
 @router.delete("/{watchlist_id}/stocks/{symbol}")
 @router.delete("/{watchlist_id}/stocks/{symbol}/")
 async def remove_stock(
-    watchlist_id: int,
     symbol: str,
+    watchlist_id: int = 1,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -88,8 +95,11 @@ async def remove_stock(
             raise HTTPException(status_code=404, detail="Watchlist not found")
     
     await remove_stock_from_watchlist(db=db, watchlist_id=watchlist_id, symbol=symbol.upper())
-    return {"message": f"Stock {symbol} removed from watchlist"}
-
+    return {
+        "success": True,
+        "message": f"Stock {symbol.upper()} removed from watchlist",
+        "symbol": symbol.upper()
+    }
 
 @router.get("/{watchlist_id}", response_model=WatchlistWithStocksResponse)
 @router.get("/{watchlist_id}/", response_model=WatchlistWithStocksResponse)
@@ -109,10 +119,6 @@ async def read_watchlist(
     
     stocks = await get_watchlist_stocks(db=db, watchlist_id=watchlist.id)
     
-    # We build the response model manually to combine watchlist and stocks
     response = WatchlistWithStocksResponse.model_validate(watchlist)
     response.stocks = stocks
     return response
-
-
-
