@@ -50,13 +50,17 @@ app.add_middleware(
 
 app.include_router(auth_router, prefix="/api/v1/auth", tags=["auth"])
 app.include_router(watchlists_router, prefix="/api/v1/watchlists", tags=["watchlists"])
+app.include_router(watchlists_router, prefix="/api/v1/watchlist", tags=["watchlist-v1-singular"])
+app.include_router(watchlists_router, prefix="/api/watchlists", tags=["watchlists-legacy"])
+app.include_router(watchlists_router, prefix="/api/watchlist", tags=["watchlist-legacy-singular"])
 app.include_router(analysis_router, prefix="/api/v1/analysis", tags=["analysis"])
+app.include_router(analysis_router, prefix="/api/analysis", tags=["analysis-legacy"])
 app.include_router(market_router, prefix="/api/v1/market", tags=["market"])
 app.include_router(analysis_meta_router, prefix="/api/v1/market-analysis", tags=["market-analysis"])
 app.include_router(stocks_router, prefix="/api/v1/stocks", tags=["stocks"])
 app.include_router(news_router, prefix="/api/v1/news", tags=["news"])
 app.include_router(profile_router, prefix="/api/v1/profile", tags=["profile"])
-app.include_router(watchlist_changes_router, prefix="/api/v1/watchlist", tags=["watchlist-changes"])
+app.include_router(watchlist_changes_router, prefix="/api/v1/watchlist-changes", tags=["watchlist-changes"])
 
 @app.post("/api/v1/refresh")
 async def refresh_etl():

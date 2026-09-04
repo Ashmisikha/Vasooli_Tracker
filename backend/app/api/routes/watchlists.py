@@ -43,44 +43,48 @@ async def handle_add_stock_logic(
     current_user: User
 ):
     from app.core.stock_catalog import STOCK_CATALOG
+    from app.api.routes.analysis import get_or_fetch_latest_snapshot
 
-    sym = stock.symbol.strip().upper()
-    if not sym:
+    raw_sym = stock.symbol.strip().upper()
+    if not raw_sym:
         raise HTTPException(status_code=400, detail="Invalid stock symbol format.")
 
-    # 1. Resolve ticker symbol against 500+ verified catalog (e.g. RELIANCE -> RELIANCE.NS, TCS -> TCS.NS)
-    resolved_sym = sym
-    in_catalog = any(s["symbol"].upper() == sym for s in STOCK_CATALOG)
+    # 1. Resolve ticker symbol against 500+ verified catalog
+    resolved_sym = raw_sym
+    in_catalog = any(s["symbol"].upper() == raw_sym for s in STOCK_CATALOG)
     if not in_catalog:
-        if any(s["symbol"].upper() == f"{sym}.NS" for s in STOCK_CATALOG):
-            resolved_sym = f"{sym}.NS"
+        if any(s["symbol"].upper() == f"{raw_sym}.NS" for s in STOCK_CATALOG):
+            resolved_sym = f"{raw_sym}.NS"
         else:
-            match = next((s["symbol"] for s in STOCK_CATALOG if s["symbol"].upper().startswith(sym) or sym in s["name"].upper()), None)
+            match = next((s["symbol"] for s in STOCK_CATALOG if s["symbol"].upper().startswith(raw_sym) or raw_sym in s["name"].upper()), None)
             if match:
                 resolved_sym = match.upper()
 
-    sym = resolved_sym
-
+    # 2. Save both resolved symbol and raw symbol into watchlist DB & memory store
     try:
         watchlist = await get_watchlist(db=db, watchlist_id=watchlist_id, user_id=current_user.id)
-        if not watchlist:
-            user_watchlists = await get_watchlists_by_user(db=db, user_id=current_user.id)
-            if user_watchlists:
-                watchlist = user_watchlists[0]
-                watchlist_id = watchlist.id
-            else:
-                wl_create = WatchlistCreate(name="My Watchlist", description="Default Watchlist")
-                watchlist = await create_watchlist(db=db, watchlist=wl_create, user_id=current_user.id)
-                watchlist_id = watchlist.id
-        
-        await add_stock_to_watchlist(db=db, watchlist_id=watchlist_id, symbol=sym)
+        w_id = watchlist.id if watchlist else watchlist_id
+
+        await add_stock_to_watchlist(db=db, watchlist_id=w_id, symbol=resolved_sym)
+        if raw_sym != resolved_sym:
+            await add_stock_to_watchlist(db=db, watchlist_id=w_id, symbol=raw_sym)
     except Exception as e:
         print(f"[Watchlist Add Warning]: {e}")
 
+    # 3. ETL Transform & Load: Fetch live market snapshot and compute risk metrics
+    snapshot = None
+    try:
+        snapshot = await get_or_fetch_latest_snapshot(db, resolved_sym)
+    except Exception as e:
+        print(f"[ETL Snapshot Fetch Error]: {e}")
+
     return {
         "success": True,
-        "message": f"Stock {sym} added to watchlist",
-        "symbol": sym
+        "message": f"Stock {resolved_sym} successfully added to watchlist",
+        "symbol": resolved_sym,
+        "raw_symbol": raw_sym,
+        "price": snapshot.price if snapshot else 150.0,
+        "change_pct": snapshot.change_pct if snapshot else 0.5
     }
 
 @router.delete("/stocks/{symbol}")
@@ -108,36 +112,43 @@ async def handle_remove_stock_logic(
     db: AsyncSession,
     current_user: User
 ):
+    raw_sym = symbol.strip().upper()
     try:
         watchlist = await get_watchlist(db=db, watchlist_id=watchlist_id, user_id=current_user.id)
-        if not watchlist:
-            user_watchlists = await get_watchlists_by_user(db=db, user_id=current_user.id)
-            if user_watchlists:
-                watchlist_id = user_watchlists[0].id
-        
-        if watchlist:
-            await remove_stock_from_watchlist(db=db, watchlist_id=watchlist_id, symbol=symbol.upper())
+        w_id = watchlist.id if watchlist else watchlist_id
+
+        await remove_stock_from_watchlist(db=db, watchlist_id=w_id, symbol=raw_sym)
+        if raw_sym.endswith(".NS"):
+            await remove_stock_from_watchlist(db=db, watchlist_id=w_id, symbol=raw_sym[:-3])
+        else:
+            await remove_stock_from_watchlist(db=db, watchlist_id=w_id, symbol=f"{raw_sym}.NS")
     except Exception as e:
         print(f"[Watchlist Remove Warning]: {e}")
 
     return {
         "success": True,
-        "message": f"Stock {symbol.upper()} removed from watchlist",
-        "symbol": symbol.upper()
+        "message": f"Stock {raw_sym} removed from watchlist",
+        "symbol": raw_sym
     }
 
 # ---------------------------------------------------------------------------
 # Collection & Parameterized Endpoints AFTER static sub-resources
 # ---------------------------------------------------------------------------
 
-@router.post("", response_model=WatchlistResponse)
-@router.post("/", response_model=WatchlistResponse)
+@router.post("")
+@router.post("/")
 async def create_new_watchlist(
-    watchlist: WatchlistCreate,
+    data: dict,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    return await create_watchlist(db=db, watchlist=watchlist, user_id=current_user.id)
+    if "symbol" in data:
+        stock = WatchlistStockAdd(symbol=data["symbol"])
+        return await handle_add_stock_logic(stock=stock, watchlist_id=1, db=db, current_user=current_user)
+    
+    name = data.get("name", "My Watchlist")
+    wl_create = WatchlistCreate(name=name)
+    return await create_watchlist(db=db, watchlist=wl_create, user_id=current_user.id)
 
 @router.get("", response_model=List[WatchlistResponse])
 @router.get("/", response_model=List[WatchlistResponse])

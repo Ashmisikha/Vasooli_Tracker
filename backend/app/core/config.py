@@ -1,6 +1,15 @@
 import os
 from typing import Optional
-from pydantic_settings import BaseSettings, SettingsConfigDict
+try:
+    from pydantic_settings import BaseSettings, SettingsConfigDict
+except ImportError:
+    try:
+        from pydantic import BaseSettings
+        SettingsConfigDict = None
+    except ImportError:
+        class BaseSettings:
+            pass
+        SettingsConfigDict = None
 from pydantic import computed_field
 
 class Settings(BaseSettings):
