@@ -43,38 +43,23 @@ async def handle_add_stock_logic(
     current_user: User
 ):
     from app.core.stock_catalog import STOCK_CATALOG
-    from app.services.yfinance_service import get_yf_quote
 
     sym = stock.symbol.strip().upper()
     if not sym or len(sym) < 1 or len(sym) > 15:
         raise HTTPException(status_code=400, detail="Invalid stock symbol format.")
 
-    # 1. Auto-resolve ticker (e.g. RELIANCE -> RELIANCE.NS, TCS -> TCS.NS)
+    # 1. Resolve ticker symbol against 500+ verified catalog (e.g. RELIANCE -> RELIANCE.NS, TCS -> TCS.NS)
     resolved_sym = sym
     in_catalog = any(s["symbol"].upper() == sym for s in STOCK_CATALOG)
     if not in_catalog:
         if any(s["symbol"].upper() == f"{sym}.NS" for s in STOCK_CATALOG):
             resolved_sym = f"{sym}.NS"
-            in_catalog = True
         else:
             match = next((s["symbol"] for s in STOCK_CATALOG if s["symbol"].upper().startswith(sym) or sym in s["name"].upper()), None)
             if match:
                 resolved_sym = match.upper()
-                in_catalog = True
 
     sym = resolved_sym
-
-    if not in_catalog:
-        live_q = await get_yf_quote(sym)
-        if not live_q or not live_q.get("price"):
-            live_q_ns = await get_yf_quote(f"{sym}.NS")
-            if live_q_ns and live_q_ns.get("price"):
-                sym = f"{sym}.NS"
-            else:
-                raise HTTPException(
-                    status_code=400, 
-                    detail=f"'{sym}' is not a valid stock. Please choose a recognized stock from the catalog."
-                )
 
     try:
         watchlist = await get_watchlist(db=db, watchlist_id=watchlist_id, user_id=current_user.id)
