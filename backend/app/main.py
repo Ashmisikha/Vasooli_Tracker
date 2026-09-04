@@ -64,8 +64,6 @@ async def refresh_etl():
     refresh_catalog()
     return {"success": True, "message": "ETL pipeline refreshed"}
 
-@app.get("/")
-@app.get("/index.html")
 @app.get("/api")
 @app.get("/api/v1")
 @app.get("/api/v1/health")

@@ -11,13 +11,17 @@ if backend_dir not in sys.path:
     sys.path.insert(0, backend_dir)
 
 from fastapi.responses import FileResponse
-
 from app.main import app as fastapi_app
 
-index_html_paths = [
-    os.path.join(root_dir, 'dist', 'index.html'),
-    os.path.join(root_dir, 'frontend', 'dist', 'index.html')
-]
+def get_index_html_path():
+    candidates = [
+        os.path.join(root_dir, 'frontend', 'dist', 'index.html'),
+        os.path.join(root_dir, 'dist', 'index.html'),
+    ]
+    for p in candidates:
+        if os.path.exists(p):
+            return p
+    return None
 
 async def app(scope, receive, send):
     if scope.get("type") == "http":
@@ -25,32 +29,37 @@ async def app(scope, receive, send):
         
         forwarded_uri = headers.get(b"x-forwarded-uri", b"").decode("utf-8").split("?")[0]
         real_url = headers.get(b"x-real-url", b"").decode("utf-8").split("?")[0]
+        raw_path = scope.get("path", "")
         
-        target_path = ""
+        is_api = False
+        target_path = raw_path
+
         if forwarded_uri and forwarded_uri.startswith("/api"):
+            is_api = True
             target_path = forwarded_uri
         elif real_url and real_url.startswith("/api"):
+            is_api = True
             target_path = real_url
-        else:
-            path = scope.get("path", "")
-            if path.startswith("/api/index.py/"):
-                target_path = path[13:]
-            elif path.startswith("/api/index.py"):
-                target_path = path[13:] or "/"
-            elif path.startswith("/api/index/"):
-                target_path = path[10:]
-            else:
-                target_path = path
+        elif raw_path.startswith("/api"):
+            is_api = True
+            if raw_path.startswith("/api/index.py/"):
+                target_path = raw_path[13:]
+            elif raw_path.startswith("/api/index.py"):
+                target_path = raw_path[13:] or "/api"
+            elif raw_path.startswith("/api/index/"):
+                target_path = raw_path[10:]
 
-        if target_path != "/" and not target_path.startswith("/api"):
-            target_path = f"/api{target_path}"
+        if is_api:
+            if not target_path.startswith("/api"):
+                target_path = f"/api{target_path}"
+            scope["path"] = target_path
+            await fastapi_app(scope, receive, send)
+            return
 
-        scope["path"] = target_path
+        index_path = get_index_html_path()
+        if index_path:
+            response = FileResponse(index_path)
+            await response(scope, receive, send)
+            return
 
     await fastapi_app(scope, receive, send)
-
-
-
-
-
-
