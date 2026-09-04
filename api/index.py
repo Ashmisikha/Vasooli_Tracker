@@ -41,29 +41,33 @@ async def app(scope, receive, send):
         real_url = extract_path(headers.get(b"x-real-url", b"").decode("utf-8"))
         raw_path = scope.get("path", "")
         
-        target_path = ""
-        for p in [forwarded_uri, real_url]:
-            if p and p.startswith("/api"):
-                target_path = p
-                break
-
-        if not target_path:
+        req_path = ""
+        if forwarded_uri and forwarded_uri not in ["/api/index.py", "/api/index"]:
+            req_path = forwarded_uri
+        elif real_url and real_url not in ["/api/index.py", "/api/index"]:
+            req_path = real_url
+        
+        if not req_path:
             if raw_path.startswith("/api/index.py/"):
-                target_path = f"/api/{raw_path[14:]}"
+                req_path = f"/api/{raw_path[14:]}"
             elif raw_path.startswith("/api/index.py"):
-                target_path = f"/api{raw_path[13:]}" if raw_path[13:] else "/api"
-            elif raw_path.startswith("/api/index/"):
-                target_path = f"/api/{raw_path[11:]}"
-            elif raw_path.startswith("/api"):
-                target_path = raw_path
+                req_path = f"/api{raw_path[13:]}" if raw_path[13:] else "/"
             else:
-                target_path = f"/api{raw_path}" if raw_path.startswith("/") else f"/api/{raw_path}"
+                req_path = raw_path
 
-        if not target_path.startswith("/api"):
-            target_path = f"/api{target_path}"
+        # If request path is an API endpoint, route to FastAPI
+        if req_path.startswith("/api/") or req_path in ["/api", "/api/v1"]:
+            if not req_path.startswith("/api"):
+                req_path = f"/api{req_path}"
+            scope["path"] = req_path
+            await fastapi_app(scope, receive, send)
+            return
 
-        scope["path"] = target_path
-        await fastapi_app(scope, receive, send)
-        return
+        # Otherwise serve frontend React app (index.html)
+        index_path = get_index_html_path()
+        if index_path:
+            response = FileResponse(index_path)
+            await response(scope, receive, send)
+            return
 
     await fastapi_app(scope, receive, send)
