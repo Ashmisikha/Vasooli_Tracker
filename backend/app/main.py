@@ -65,5 +65,9 @@ async def refresh_etl():
     return {"success": True, "message": "ETL pipeline refreshed"}
 
 @app.get("/")
+@app.get("/api")
+@app.get("/api/v1")
+@app.get("/api/v1/health")
 async def root():
-    return {"message": "Welcome to Vasooli Tracker API - Delta & Context Engine"}
+    return {"status": "ok", "message": "Welcome to Vasooli Tracker API - Delta & Context Engine"}
+
