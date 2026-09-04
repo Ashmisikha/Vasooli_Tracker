@@ -17,6 +17,7 @@ def get_index_html_path():
     candidates = [
         os.path.join(root_dir, 'frontend', 'dist', 'index.html'),
         os.path.join(root_dir, 'dist', 'index.html'),
+        os.path.join(root_dir, 'index.html'),
     ]
     for p in candidates:
         if os.path.exists(p):
@@ -31,23 +32,21 @@ async def app(scope, receive, send):
         real_url = headers.get(b"x-real-url", b"").decode("utf-8").split("?")[0]
         raw_path = scope.get("path", "")
         
-        is_api = False
-        target_path = raw_path
-
-        if forwarded_uri and forwarded_uri.startswith("/api"):
-            is_api = True
-            target_path = forwarded_uri
-        elif real_url and real_url.startswith("/api"):
-            is_api = True
-            target_path = real_url
-        elif raw_path.startswith("/api"):
-            is_api = True
+        req_path = forwarded_uri or real_url
+        
+        if req_path:
+            is_api = req_path.startswith("/api")
+            target_path = req_path
+        else:
             if raw_path.startswith("/api/index.py/"):
                 target_path = raw_path[13:]
             elif raw_path.startswith("/api/index.py"):
-                target_path = raw_path[13:] or "/api"
+                target_path = raw_path[13:] or "/"
             elif raw_path.startswith("/api/index/"):
                 target_path = raw_path[10:]
+            else:
+                target_path = raw_path
+            is_api = target_path.startswith("/api")
 
         if is_api:
             if not target_path.startswith("/api"):
