@@ -14,7 +14,10 @@ from fastapi.responses import FileResponse
 
 from app.main import app as fastapi_app
 
-index_html_path = os.path.join(root_dir, 'frontend', 'dist', 'index.html')
+index_html_paths = [
+    os.path.join(root_dir, 'dist', 'index.html'),
+    os.path.join(root_dir, 'frontend', 'dist', 'index.html')
+]
 
 async def app(scope, receive, send):
     if scope.get("type") == "http":
@@ -30,10 +33,13 @@ async def app(scope, receive, send):
             path = path[9:] or "/"
 
         # Fallback: if root or index.html is routed to backend function and dist/index.html exists
-        if path in ("/", "/index.html") and os.path.exists(index_html_path):
-            response = FileResponse(index_html_path)
-            await response(scope, receive, send)
-            return
+        if path in ("/", "/index.html"):
+            for html_path in index_html_paths:
+                if os.path.exists(html_path):
+                    response = FileResponse(html_path)
+                    await response(scope, receive, send)
+                    return
+
         
         # Ensure non-root API calls retain /api prefix expected by router
         if path != "/" and not path.startswith("/api"):
