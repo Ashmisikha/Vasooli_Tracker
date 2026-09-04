@@ -1,0 +1,54 @@
+===================================================================
+               VASOOLI TRACKER - QUICK START GUIDE
+===================================================================
+
+Prerequisites:
+1. Python (v3.10+): https://www.python.org/downloads/
+2. Node.js (v18+): https://nodejs.org/
+
+-------------------------------------------------------------------
+STEP 1: START THE BACKEND SERVER
+-------------------------------------------------------------------
+1. Open a terminal / command prompt in the "backend" folder:
+   cd backend
+
+2. (Optional but recommended) Create and activate a virtual environment:
+   python -m venv venv
+   venv\Scripts\activate          # On Windows
+   # or: source venv/bin/activate # On macOS/Linux
+
+3. Install required packages:
+   pip install -r requirements.txt
+
+4. Start the FastAPI server:
+   python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+
+-> Backend will be running at: http://localhost:8000
+-> API Interactive Docs at: http://localhost:8000/docs
+
+
+-------------------------------------------------------------------
+STEP 2: START THE FRONTEND APP
+-------------------------------------------------------------------
+1. Open a NEW terminal / command prompt in the "frontend" folder:
+   cd frontend
+
+2. Install dependencies:
+   npm install
+
+3. Run the development server:
+   npm run dev
+
+-> Frontend will be live at: http://localhost:3000
+
+
+-------------------------------------------------------------------
+FEATURES INCLUDED:
+-------------------------------------------------------------------
+- Live Stock Market & Real-time Market Indices (NSE/BSE & US)
+- Indian Stocks (NSE/BSE) priced in Rupees (₹)
+- US Stocks priced in USD ($)
+- Smart Watchlists, Checkpoints & Timeline Comparison
+- AI Risk & Sentiment Analysis
+- Dark / Light Theme & Responsive Modern Dashboard
+===================================================================

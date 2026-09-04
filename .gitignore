@@ -1,0 +1,39 @@
+# Dependencies
+node_modules/
+frontend/node_modules/
+.venv/
+venv/
+env/
+
+# Build artifacts
+dist/
+frontend/dist/
+build/
+*.egg-info/
+
+# Python cache & bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Environment variables & local databases
+.env
+.env.local
+*.log
+
+# SQLite database files — Fix #7/#13: never commit DB binaries (may contain user data)
+backend/watchlist.db
+backend/*.db
+*.db
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
