@@ -21,32 +21,24 @@ index_html_paths = [
 
 async def app(scope, receive, send):
     if scope.get("type") == "http":
-        path = scope.get("path", "")
-        # Normalize path if Vercel prepends entrypoint module path
-        if path.startswith("/api/index.py"):
-            path = path[13:] or "/"
-        elif path.startswith("/api/index"):
-            path = path[10:] or "/"
-
-        # Strip any accidental frontend/ prefix if routed to Python function
-        if path.startswith("/frontend"):
-            path = path[9:] or "/"
-
-        # Fallback: if root or index.html is routed to backend function and dist/index.html exists
-        if path in ("/", "/index.html"):
-            for html_path in index_html_paths:
-                if os.path.exists(html_path):
-                    response = FileResponse(html_path)
-                    await response(scope, receive, send)
-                    return
-
+        headers = dict(scope.get("headers", []))
+        matched_path = headers.get(b"x-matched-path", b"").decode("utf-8")
         
-        # Ensure non-root API calls retain /api prefix expected by router
-        if path != "/" and not path.startswith("/api"):
-            path = f"/api{path}"
+        if matched_path and matched_path.startswith("/api"):
+            scope["path"] = matched_path
+        else:
+            path = scope.get("path", "")
+            if path.startswith("/api/index.py/"):
+                path = path[13:]
+            elif path.startswith("/api/index/"):
+                path = path[10:]
             
-        scope["path"] = path
+            if path != "/" and not path.startswith("/api"):
+                path = f"/api{path}"
+            scope["path"] = path
+
     await fastapi_app(scope, receive, send)
+
 
 
 
