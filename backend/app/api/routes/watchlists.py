@@ -45,7 +45,7 @@ async def handle_add_stock_logic(
     from app.core.stock_catalog import STOCK_CATALOG
 
     sym = stock.symbol.strip().upper()
-    if not sym or len(sym) < 1 or len(sym) > 15:
+    if not sym:
         raise HTTPException(status_code=400, detail="Invalid stock symbol format.")
 
     # 1. Resolve ticker symbol against 500+ verified catalog (e.g. RELIANCE -> RELIANCE.NS, TCS -> TCS.NS)
