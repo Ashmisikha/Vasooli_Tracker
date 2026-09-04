@@ -1,5 +1,6 @@
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.db.session import engine
@@ -27,6 +28,16 @@ app = FastAPI(
     openapi_url="/api/v1/openapi.json",
     lifespan=lifespan
 )
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    import traceback
+    error_msg = f"{type(exc).__name__}: {str(exc)}"
+    print(f"[Global Exception Handler]: {error_msg}\n{traceback.format_exc()}")
+    return JSONResponse(
+        status_code=500,
+        content={"detail": error_msg, "path": str(request.url)}
+    )
 
 # Enable CORS for local development
 app.add_middleware(
