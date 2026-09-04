@@ -11,7 +11,7 @@ if root_dir not in sys.path:
 if backend_dir not in sys.path:
     sys.path.insert(0, backend_dir)
 
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from app.main import app as fastapi_app
 
 def get_index_html_path():
@@ -40,7 +40,17 @@ async def app(scope, receive, send):
         forwarded_uri = extract_path(headers.get(b"x-forwarded-uri", b"").decode("utf-8"))
         real_url = extract_path(headers.get(b"x-real-url", b"").decode("utf-8"))
         raw_path = scope.get("path", "")
-        
+
+        if raw_path == "/api/debug" or forwarded_uri == "/api/debug":
+            res = JSONResponse({
+                "raw_path": raw_path,
+                "forwarded_uri": forwarded_uri,
+                "real_url": real_url,
+                "headers": {k.decode("utf-8", "ignore"): v.decode("utf-8", "ignore") for k, v in headers.items()}
+            })
+            await res(scope, receive, send)
+            return
+
         target_path = ""
         if forwarded_uri and (forwarded_uri.startswith("/api") or forwarded_uri not in ["/", "/index.html"]):
             target_path = forwarded_uri
