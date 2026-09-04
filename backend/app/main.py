@@ -1,15 +1,31 @@
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
+from app.db.session import engine
+from app.db.base import Base
 from app.api.routes import (
     auth_router, watchlists_router, analysis_router,
     market_router, analysis_meta_router, stocks_router,
     news_router, profile_router, watchlist_changes_router
 )
 
+import app.models  # noqa: F401 register models for metadata
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Auto-create tables on startup (especially for SQLite in /tmp)
+    try:
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+    except Exception as e:
+        print(f"[DB Startup Warning]: {e}")
+    yield
+
 app = FastAPI(
     title=settings.PROJECT_NAME,
-    openapi_url="/api/v1/openapi.json"
+    openapi_url="/api/v1/openapi.json",
+    lifespan=lifespan
 )
 
 # Enable CORS for local development
