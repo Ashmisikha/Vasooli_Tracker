@@ -30,6 +30,7 @@ async def read_watchlists(
     return await get_watchlists_by_user(db=db, user_id=current_user.id)
 
 @router.post("/{watchlist_id}/stocks")
+@router.post("/{watchlist_id}/stocks/")
 async def add_stock(
     watchlist_id: int,
     stock: WatchlistStockAdd,
@@ -71,6 +72,7 @@ async def add_stock(
 
 
 @router.delete("/{watchlist_id}/stocks/{symbol}")
+@router.delete("/{watchlist_id}/stocks/{symbol}/")
 async def remove_stock(
     watchlist_id: int,
     symbol: str,
@@ -90,11 +92,13 @@ async def remove_stock(
 
 
 @router.get("/{watchlist_id}", response_model=WatchlistWithStocksResponse)
+@router.get("/{watchlist_id}/", response_model=WatchlistWithStocksResponse)
 async def read_watchlist(
     watchlist_id: int,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
+
     watchlist = await get_watchlist(db=db, watchlist_id=watchlist_id, user_id=current_user.id)
     if not watchlist:
         raise HTTPException(status_code=404, detail="Watchlist not found")
