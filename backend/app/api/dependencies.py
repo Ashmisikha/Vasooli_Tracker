@@ -31,25 +31,27 @@ async def get_or_create_user(db: AsyncSession, username: str) -> User:
         except Exception:
             await db.rollback()
             user = await get_user_by_username(db, username=username)
-            if not user:
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Could not validate credentials"
-                )
     return user
 
 async def get_current_user(
     db: AsyncSession = Depends(get_db), token: Optional[str] = Depends(oauth2_scheme)
 ) -> User:
     username = "demo"
-    if token:
+    if token and token not in ("undefined", "null", "none", ""):
         try:
             payload = jwt.decode(token, settings.SECRET_KEY, algorithms=["HS256"])
             extracted_username = payload.get("sub")
             if extracted_username:
                 username = extracted_username
-        except JWTError:
+        except Exception:
             username = "demo"
     
-    return await get_or_create_user(db, username=username)
+    try:
+        user = await get_or_create_user(db, username=username)
+        if user:
+            return user
+    except Exception as e:
+        print(f"[Auth Error]: Fallback to demo user due to: {e}")
 
+    # Guarantees user object is always returned
+    return await get_or_create_user(db, username="demo")

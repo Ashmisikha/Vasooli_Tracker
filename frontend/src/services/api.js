@@ -2,7 +2,9 @@ const PRIMARY_API_BASE = import.meta.env?.VITE_API_BASE_URL || '/api/v1';
 
 /** Returns the stored API auth token (set at login time). */
 function getAuthToken() {
-  return localStorage.getItem('vasooli_token') || '';
+  const token = localStorage.getItem('vasooli_token');
+  if (!token || token === 'undefined' || token === 'null') return '';
+  return token;
 }
 
 export async function fetchWithFallback(endpoint, options = {}) {
@@ -16,7 +18,14 @@ export async function fetchWithFallback(endpoint, options = {}) {
 
   try {
     const directUrl = `${PRIMARY_API_BASE}${endpoint}`;
-    const res = await fetch(directUrl, { ...options, headers });
+    let res = await fetch(directUrl, { ...options, headers });
+    
+    if (res.status === 401 && token) {
+      localStorage.removeItem('vasooli_token');
+      delete headers['Authorization'];
+      res = await fetch(directUrl, { ...options, headers });
+    }
+
     if (res.ok) return res;
     
     const errorData = await res.json().catch(() => ({}));
