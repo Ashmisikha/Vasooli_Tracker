@@ -12,33 +12,35 @@ from app.models.user import User
 
 router = APIRouter()
 
-@router.post("", response_model=WatchlistResponse)
-@router.post("/", response_model=WatchlistResponse)
-async def create_new_watchlist(
-    watchlist: WatchlistCreate,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    return await create_watchlist(db=db, watchlist=watchlist, user_id=current_user.id)
-
-@router.get("", response_model=List[WatchlistResponse])
-@router.get("/", response_model=List[WatchlistResponse])
-async def read_watchlists(
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    return await get_watchlists_by_user(db=db, user_id=current_user.id)
+# ---------------------------------------------------------------------------
+# Static sub-resources FIRST (to prevent Starlette /{watchlist_id} route shadowing)
+# ---------------------------------------------------------------------------
 
 @router.post("/stocks")
 @router.post("/stocks/")
 @router.post("/add")
+async def add_stock_unbound(
+    stock: WatchlistStockAdd,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    return await handle_add_stock_logic(stock=stock, watchlist_id=1, db=db, current_user=current_user)
+
 @router.post("/{watchlist_id}/stocks")
 @router.post("/{watchlist_id}/stocks/")
 async def add_stock(
+    watchlist_id: int,
     stock: WatchlistStockAdd,
-    watchlist_id: int = 1,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
+):
+    return await handle_add_stock_logic(stock=stock, watchlist_id=watchlist_id, db=db, current_user=current_user)
+
+async def handle_add_stock_logic(
+    stock: WatchlistStockAdd,
+    watchlist_id: int,
+    db: AsyncSession,
+    current_user: User
 ):
     from app.core.stock_catalog import STOCK_CATALOG
     from app.services.yfinance_service import get_yf_quote
@@ -78,13 +80,29 @@ async def add_stock(
     }
 
 @router.delete("/stocks/{symbol}")
+@router.delete("/stocks/{symbol}/")
+async def remove_stock_unbound(
+    symbol: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    return await handle_remove_stock_logic(symbol=symbol, watchlist_id=1, db=db, current_user=current_user)
+
 @router.delete("/{watchlist_id}/stocks/{symbol}")
 @router.delete("/{watchlist_id}/stocks/{symbol}/")
 async def remove_stock(
+    watchlist_id: int,
     symbol: str,
-    watchlist_id: int = 1,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
+):
+    return await handle_remove_stock_logic(symbol=symbol, watchlist_id=watchlist_id, db=db, current_user=current_user)
+
+async def handle_remove_stock_logic(
+    symbol: str,
+    watchlist_id: int,
+    db: AsyncSession,
+    current_user: User
 ):
     watchlist = await get_watchlist(db=db, watchlist_id=watchlist_id, user_id=current_user.id)
     if not watchlist:
@@ -100,6 +118,27 @@ async def remove_stock(
         "message": f"Stock {symbol.upper()} removed from watchlist",
         "symbol": symbol.upper()
     }
+
+# ---------------------------------------------------------------------------
+# Collection & Parameterized Endpoints AFTER static sub-resources
+# ---------------------------------------------------------------------------
+
+@router.post("", response_model=WatchlistResponse)
+@router.post("/", response_model=WatchlistResponse)
+async def create_new_watchlist(
+    watchlist: WatchlistCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    return await create_watchlist(db=db, watchlist=watchlist, user_id=current_user.id)
+
+@router.get("", response_model=List[WatchlistResponse])
+@router.get("/", response_model=List[WatchlistResponse])
+async def read_watchlists(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    return await get_watchlists_by_user(db=db, user_id=current_user.id)
 
 @router.get("/{watchlist_id}", response_model=WatchlistWithStocksResponse)
 @router.get("/{watchlist_id}/", response_model=WatchlistWithStocksResponse)
