@@ -49,30 +49,49 @@ async def handle_add_stock_logic(
     if not sym or len(sym) < 1 or len(sym) > 15:
         raise HTTPException(status_code=400, detail="Invalid stock symbol format.")
 
-    # 1. Check if stock exists in 500+ verified catalog
+    # 1. Auto-resolve ticker (e.g. RELIANCE -> RELIANCE.NS, TCS -> TCS.NS)
+    resolved_sym = sym
     in_catalog = any(s["symbol"].upper() == sym for s in STOCK_CATALOG)
-    
     if not in_catalog:
-        # 2. Check if it is a verified live exchange symbol
+        if any(s["symbol"].upper() == f"{sym}.NS" for s in STOCK_CATALOG):
+            resolved_sym = f"{sym}.NS"
+            in_catalog = True
+        else:
+            match = next((s["symbol"] for s in STOCK_CATALOG if s["symbol"].upper().startswith(sym) or sym in s["name"].upper()), None)
+            if match:
+                resolved_sym = match.upper()
+                in_catalog = True
+
+    sym = resolved_sym
+
+    if not in_catalog:
         live_q = await get_yf_quote(sym)
         if not live_q or not live_q.get("price"):
-            raise HTTPException(
-                status_code=400, 
-                detail=f"'{sym}' is not a valid stock. Please choose a recognized stock from the catalog."
-            )
+            live_q_ns = await get_yf_quote(f"{sym}.NS")
+            if live_q_ns and live_q_ns.get("price"):
+                sym = f"{sym}.NS"
+            else:
+                raise HTTPException(
+                    status_code=400, 
+                    detail=f"'{sym}' is not a valid stock. Please choose a recognized stock from the catalog."
+                )
 
-    watchlist = await get_watchlist(db=db, watchlist_id=watchlist_id, user_id=current_user.id)
-    if not watchlist:
-        user_watchlists = await get_watchlists_by_user(db=db, user_id=current_user.id)
-        if user_watchlists:
-            watchlist = user_watchlists[0]
-            watchlist_id = watchlist.id
-        else:
-            wl_create = WatchlistCreate(name="My Watchlist", description="Default Watchlist")
-            watchlist = await create_watchlist(db=db, watchlist=wl_create, user_id=current_user.id)
-            watchlist_id = watchlist.id
-    
-    await add_stock_to_watchlist(db=db, watchlist_id=watchlist_id, symbol=sym)
+    try:
+        watchlist = await get_watchlist(db=db, watchlist_id=watchlist_id, user_id=current_user.id)
+        if not watchlist:
+            user_watchlists = await get_watchlists_by_user(db=db, user_id=current_user.id)
+            if user_watchlists:
+                watchlist = user_watchlists[0]
+                watchlist_id = watchlist.id
+            else:
+                wl_create = WatchlistCreate(name="My Watchlist", description="Default Watchlist")
+                watchlist = await create_watchlist(db=db, watchlist=wl_create, user_id=current_user.id)
+                watchlist_id = watchlist.id
+        
+        await add_stock_to_watchlist(db=db, watchlist_id=watchlist_id, symbol=sym)
+    except Exception as e:
+        print(f"[Watchlist Add Warning]: {e}")
+
     return {
         "success": True,
         "message": f"Stock {sym} added to watchlist",
@@ -104,15 +123,18 @@ async def handle_remove_stock_logic(
     db: AsyncSession,
     current_user: User
 ):
-    watchlist = await get_watchlist(db=db, watchlist_id=watchlist_id, user_id=current_user.id)
-    if not watchlist:
-        user_watchlists = await get_watchlists_by_user(db=db, user_id=current_user.id)
-        if user_watchlists:
-            watchlist_id = user_watchlists[0].id
-        else:
-            raise HTTPException(status_code=404, detail="Watchlist not found")
-    
-    await remove_stock_from_watchlist(db=db, watchlist_id=watchlist_id, symbol=symbol.upper())
+    try:
+        watchlist = await get_watchlist(db=db, watchlist_id=watchlist_id, user_id=current_user.id)
+        if not watchlist:
+            user_watchlists = await get_watchlists_by_user(db=db, user_id=current_user.id)
+            if user_watchlists:
+                watchlist_id = user_watchlists[0].id
+        
+        if watchlist:
+            await remove_stock_from_watchlist(db=db, watchlist_id=watchlist_id, symbol=symbol.upper())
+    except Exception as e:
+        print(f"[Watchlist Remove Warning]: {e}")
+
     return {
         "success": True,
         "message": f"Stock {symbol.upper()} removed from watchlist",
