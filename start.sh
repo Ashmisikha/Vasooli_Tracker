@@ -24,9 +24,9 @@ if [ ! -d "frontend/node_modules" ]; then
     cd frontend && npm install && cd ..
 fi
 
-# 3. Start Backend Flask API on port 5001
-echo "Starting Flask Backend API on http://127.0.0.1:5001..."
-PORT=5001 .venv/bin/python3 backend/app.py &
+# 3. Start Backend FastAPI on port 8000
+echo "Starting FastAPI Backend API on http://127.0.0.1:8000..."
+PYTHONPATH=backend .venv/bin/python3 -m uvicorn app.main:app --host 0.0.0.0 --port 8000 &
 BACKEND_PID=$!
 
 # Trap Ctrl+C to stop both processes cleanly
