@@ -278,7 +278,7 @@ def add_watchlist():
     # Check if already in watchlist
     existing = loader.check_in_watchlist(symbol, user_id)
     if existing:
-        return jsonify({"success": False, "error": f"Stock {symbol} is already in your watchlist."}), 400
+        return jsonify({"success": True, "message": f"Stock {symbol} is already in your watchlist.", "symbol": symbol}), 200
 
     # Also record in stock loader
     loader.add_to_watchlist(symbol, user_id=user_id, notes=notes, tags=tags)

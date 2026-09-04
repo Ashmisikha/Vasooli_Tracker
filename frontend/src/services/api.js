@@ -126,18 +126,32 @@ export async function fetchWatchlist(userId = 'default') {
 
 
 export async function addStockToWatchlist(symbol, notes = '', tags = '', userId = 'default') {
+  const cleanSym = symbol.trim().toUpperCase();
   const wlId = await getDefaultWatchlistId();
-  const res = await fetchWithFallback(`/watchlists/${wlId}/stocks`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ symbol: symbol.toUpperCase() }),
-  });
   
-  if (!res.ok) {
-    const errorData = await res.json().catch(() => ({}));
-    throw new Error(errorData.detail || 'Failed to add stock');
+  const endpoints = [
+    `/watchlists/${wlId}/stocks`,
+    `/watchlists/stocks`,
+    `/watchlist`
+  ];
+
+  let lastError = null;
+  for (const ep of endpoints) {
+    try {
+      const res = await fetchWithFallback(ep, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ symbol: cleanSym, notes, tags, user_id: userId }),
+      });
+      if (res && res.ok) {
+        return await res.json().catch(() => ({ success: true, symbol: cleanSym }));
+      }
+    } catch (err) {
+      lastError = err;
+    }
   }
-  return await res.json();
+  
+  throw lastError || new Error(`Failed to add ${cleanSym} to watchlist`);
 }
 
 export async function removeStockFromWatchlist(symbol, userId = 'default') {
