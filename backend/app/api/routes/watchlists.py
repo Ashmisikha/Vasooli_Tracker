@@ -98,16 +98,21 @@ async def read_watchlist(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-
     watchlist = await get_watchlist(db=db, watchlist_id=watchlist_id, user_id=current_user.id)
     if not watchlist:
-        raise HTTPException(status_code=404, detail="Watchlist not found")
+        user_watchlists = await get_watchlists_by_user(db=db, user_id=current_user.id)
+        if user_watchlists:
+            watchlist = user_watchlists[0]
+        else:
+            wl_create = WatchlistCreate(name="My Watchlist", description="Default Watchlist")
+            watchlist = await create_watchlist(db=db, watchlist=wl_create, user_id=current_user.id)
     
-    stocks = await get_watchlist_stocks(db=db, watchlist_id=watchlist_id)
+    stocks = await get_watchlist_stocks(db=db, watchlist_id=watchlist.id)
     
     # We build the response model manually to combine watchlist and stocks
     response = WatchlistWithStocksResponse.model_validate(watchlist)
     response.stocks = stocks
     return response
+
 
 
