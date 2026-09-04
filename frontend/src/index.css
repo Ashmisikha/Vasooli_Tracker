@@ -1,0 +1,171 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* {
+  box-sizing: border-box;
+}
+
+@layer base {
+  body {
+    background-color: #F5F7FA;
+    color: #1A1A2E;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-weight: 700;
+    letter-spacing: -0.02em;
+  }
+
+  p, span, label, button, a {
+    font-weight: 400;
+    letter-spacing: 0.01em;
+  }
+}
+
+/* Numbers - Inter for clarity */
+.number, .price, .stat-value {
+  font-family: 'Inter', monospace;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
+
+/* Tagline */
+.tagline {
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-size: 10px;
+}
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #F5F7FA;
+}
+::-webkit-scrollbar-thumb {
+  background: #CBD5E1;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #0A5C3A;
+}
+
+:root {
+  /* Dark Green Theme Palette */
+  --dark-green: #0A5C3A;
+  --dark-green-hover: #0A4A2E;
+  --dark-green-dark: #0A3A22;
+  --dark-green-light: #0A6C4A;
+  --dark-green-lighter: #0A7C5A;
+  --dark-green-muted: #1A4A3A;
+  --dark-green-bg: #E8F5EE;
+  --dark-green-glow: rgba(10, 92, 58, 0.3);
+  --dark-green-gradient: linear-gradient(135deg, #0A5C3A 0%, #1A2E1A 100%);
+
+  --green-primary: #0A5C3A;
+  --green-primary-dark: #0A4A2E;
+  --green-primary-darker: #0A3A22;
+  --green-primary-light: #0A6C4A;
+  --green-primary-lighter: #0A7C5A;
+  
+  --bg-gradient-start: #0A5C3A;
+  --bg-gradient-end: #1A2E1A;
+  
+  --green-accent: #0A5C3A;
+  --green-muted: #1A4A3A;
+
+  --bullish-primary: #0A5C3A;
+  --bullish-light: #E8F5EE;
+  --bullish-dark: #0A4A2E;
+  
+  --bearish-primary: #8B1A1A;
+  --bearish-light: #F5E6E6;
+  --bearish-dark: #5C1010;
+  
+  --neutral-primary: #8E8E93;
+  --neutral-light: #F5F5F5;
+  --neutral-dark: #636366;
+
+  --brand-blue: #0A5C3A;
+  --brand-green: #0A5C3A;
+}
+
+/* Tailwind dark green helper classes */
+.bg-dark-green { background-color: #0A5C3A; }
+.bg-dark-green-dark { background-color: #0A4A2E; }
+.bg-dark-green-darker { background-color: #0A3A22; }
+.bg-dark-green-light { background-color: #0A6C4A; }
+.bg-dark-green-bg { background-color: #E8F5EE; }
+.text-dark-green { color: #0A5C3A; }
+.border-dark-green { border-color: #0A5C3A; }
+
+/* Gradient backgrounds */
+.bg-gradient-dark-green {
+  background: linear-gradient(135deg, #0A5C3A 0%, #1A2E1A 100%);
+}
+
+.bg-gradient-dark-green-light {
+  background: linear-gradient(135deg, #0A6C4A 0%, #0A5C3A 100%);
+}
+
+.bullish-bg { background-color: var(--bullish-light); }
+.bullish-text { color: var(--bullish-primary); }
+.bullish-border { border-color: var(--bullish-primary); }
+
+.bearish-bg { background-color: var(--bearish-light); }
+.bearish-text { color: var(--bearish-primary); }
+.bearish-border { border-color: var(--bearish-primary); }
+
+.neutral-bg { background-color: var(--neutral-light); }
+.neutral-text { color: var(--neutral-primary); }
+.neutral-border { border-color: var(--neutral-primary); }
+
+/* App Header */
+.groww-header {
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-bottom: 1px solid #E8EBEF;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+/* Card Hover */
+.card-groww {
+  background-color: #FFFFFF;
+  border: 1px solid #E8EBEF;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.card-groww:hover {
+  background-color: #FFFFFF;
+  border-color: #0A5C3A;
+  box-shadow: 0 8px 25px rgba(10, 92, 58, 0.12);
+  transform: translateY(-2px);
+}
+
+/* Button Gradients */
+.btn-groww {
+  background: linear-gradient(135deg, #0A5C3A 0%, #0A4A2E 100%);
+  color: #FFFFFF;
+}
+.btn-groww:hover {
+  background: linear-gradient(135deg, #0A4A2E 0%, #0A3A22 100%);
+}
+
+.btn-groww-blue {
+  background: linear-gradient(135deg, #0A5C3A 0%, #0A4A2E 100%);
+  color: #FFFFFF;
+}
+.btn-groww-blue:hover {
+  background: linear-gradient(135deg, #0A4A2E 0%, #0A3A22 100%);
+}
