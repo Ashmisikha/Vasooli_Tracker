@@ -274,7 +274,7 @@ def get_stocks():
     
     return jsonify({'data': stocks, 'results': stocks, 'total': len(stocks)})
 
-@app.route('/', methods=['GET'])
+@app.route('/', methods=['GET', 'OPTIONS'])
 @app.route('/index.html', methods=['GET'])
 def root():
     """Root endpoint for health check"""
@@ -284,8 +284,49 @@ def root():
         'version': '1.0.0'
     })
 
+@app.route('/<path:path>', methods=['GET', 'POST', 'DELETE', 'OPTIONS', 'PUT'])
+def catch_all(path):
+    """Catch-all router to handle any path format from Vercel serverless rewrites"""
+    if request.method == 'OPTIONS':
+        return jsonify({'status': 'ok'}), 200
+        
+    clean_path = '/' + path.strip('/')
+    
+    # Strip leading /api and /v1 prefixes
+    for prefix in ['/api/v1/', '/api/', '/v1/']:
+        if clean_path.startswith(prefix):
+            clean_path = '/' + clean_path[len(prefix):]
+            break
+
+    if clean_path in ['/', '/health', '/index.html']:
+        return health_check()
+    elif clean_path in ['/watchlist', '/watchlists', '/watchlist/1', '/watchlists/1']:
+        if request.method == 'POST':
+            return add_to_watchlist()
+        elif request.method == 'DELETE':
+            return remove_from_watchlist(request.json.get('symbol', 'AAPL') if request.json else 'AAPL')
+        return get_watchlist()
+    elif clean_path.startswith('/watchlist') or clean_path.startswith('/watchlists'):
+        parts = clean_path.split('/')
+        if request.method == 'POST':
+            return add_to_watchlist()
+        elif request.method == 'DELETE':
+            return remove_from_watchlist(parts[-1])
+        return get_watchlist()
+    elif clean_path in ['/stocks']:
+        return get_stocks()
+    elif 'market' in clean_path or 'analysis' in clean_path or 'signal' in clean_path or 'insights' in clean_path:
+        return get_market_statistics()
+    elif 'analyze' in clean_path:
+        parts = clean_path.split('/')
+        symbol = parts[-1] if len(parts) > 1 else 'AAPL'
+        return analyze_stock(symbol)
+        
+    return health_check()
+
 # This is the entry point for Vercel
 app = app
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
+
