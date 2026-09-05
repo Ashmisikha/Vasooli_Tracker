@@ -45,7 +45,7 @@ class Settings(BaseSettings):
     SECRET_KEY: str = "vasooli_tracker_default_secret_key_2026_change_in_production"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 8
     
-    FINNHUB_API_KEY: Optional[str] = None
+    FINNHUB_API_KEY: Optional[str] = "dadt629r01qtj63qo6b0dadt629r01qtj63qo6bg"
 
     if SettingsConfigDict is not None:
         model_config = SettingsConfigDict(env_file=".env", extra="ignore")

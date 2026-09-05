@@ -14,7 +14,7 @@ import requests
 app = Flask(__name__)
 CORS(app)
 
-FINNHUB_TOKEN = os.environ.get('FINNHUB_API_KEY', 'dadi4r9r01qtj63ph1p0dadi4r9r01qtj63ph1pg')
+FINNHUB_TOKEN = os.environ.get('FINNHUB_API_KEY', 'dadt629r01qtj63qo6b0dadt629r01qtj63qo6bg')
 
 # Simple cache to reduce API calls
 cache = {}
