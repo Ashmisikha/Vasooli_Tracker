@@ -78,10 +78,26 @@ function AppLayout() {
         fetchPortfolioSummary()
       ]);
       const fetchedWl = wlData.watchlist || wlData.data || [];
-      if (Array.isArray(fetchedWl) && fetchedWl.length > 0) {
-        setWatchlist(fetchedWl);
-        try { localStorage.setItem('vasooli_watchlist_state', JSON.stringify(fetchedWl)); } catch (e) {}
-      }
+
+      // Merge: keep everything currently in state (incl. optimistically-added stocks),
+      // enriched/overridden by real prices from the backend fetch.
+      setWatchlist(prev => {
+        const backendMap = new Map();
+        if (Array.isArray(fetchedWl)) {
+          fetchedWl.forEach(s => { if (s && s.symbol) backendMap.set(s.symbol.toUpperCase(), s); });
+        }
+        // Start with current local state to preserve optimistically-added stocks
+        const merged = prev.map(s => backendMap.get(s.symbol.toUpperCase()) || s);
+        // Append any backend stocks not already in local state
+        fetchedWl.forEach(s => {
+          if (s && s.symbol && !merged.some(m => m.symbol.toUpperCase() === s.symbol.toUpperCase())) {
+            merged.push(s);
+          }
+        });
+        try { localStorage.setItem('vasooli_watchlist_state', JSON.stringify(merged)); } catch (e) {}
+        return merged;
+      });
+
       setPortfolioSummary(sumData);
     } catch (err) {
       console.error('Failed to load Vasooli Tracker data:', err);

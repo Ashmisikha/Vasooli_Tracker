@@ -128,13 +128,8 @@ const MarketPerformance = ({ selectedMarket = 'india' }) => {
   const [secondsAgo, setSecondsAgo]       = useState(0);
   const [dataSource, setDataSource]       = useState('');
 
-  // Switch default index when market context changes
-  useEffect(() => {
-    const defaultIdx = selectedMarket === 'india' ? 'NIFTY 50' : 'S&P 500';
-    setSelectedIndex(defaultIdx);
-    loadIndices();
-    loadChart(defaultIdx, selectedPeriod);
-  }, [selectedMarket]);
+
+
 
   // Seconds-ago ticker
   useEffect(() => {
@@ -143,7 +138,7 @@ const MarketPerformance = ({ selectedMarket = 'india' }) => {
     return () => clearInterval(t);
   }, [lastUpdated]);
 
-  // Fetch index quotes
+  // Fetch index quotes — returns the map so chart init can use it immediately
   const loadIndices = useCallback(async () => {
     try {
       const data = await fetchMarketIndices(selectedMarket);
@@ -151,18 +146,21 @@ const MarketPerformance = ({ selectedMarket = 'india' }) => {
         const map = {};
         data.indices.forEach(idx => { map[idx.name] = idx; });
         setIndicesMap(map);
+        setLastUpdated(Date.now());
+        setSecondsAgo(0);
+        return map;
       }
-      setLastUpdated(Date.now());
-      setSecondsAgo(0);
     } catch (e) {
       console.warn('[MarketPerformance] indices fetch error:', e);
     } finally {
       setLoading(false);
     }
+    return {};
   }, [selectedMarket]);
 
-  // Fetch chart data
-  const loadChart = useCallback(async (index, period) => {
+  // Fetch chart data — accepts an optional indicesMap override so we can use
+  // freshly-loaded index prices without waiting for a state flush.
+  const loadChart = useCallback(async (index, period, indicesMapOverride) => {
     setChartLoading(true);
     let success = false;
     try {
@@ -179,13 +177,28 @@ const MarketPerformance = ({ selectedMarket = 'india' }) => {
     }
 
     if (!success) {
-      const curIdxObj = indicesMap[index];
-      const priceVal = curIdxObj ? (typeof curIdxObj.price === 'number' ? curIdxObj.price : parseFloat(String(curIdxObj.price).replace(/,/g, ''))) : null;
+      // Use the override map (freshly fetched) or fall back to state
+      const mapToUse = indicesMapOverride || indicesMap;
+      const curIdxObj = mapToUse[index];
+      const priceVal = curIdxObj
+        ? (typeof curIdxObj.price === 'number'
+            ? curIdxObj.price
+            : parseFloat(String(curIdxObj.price).replace(/,/g, '')))
+        : INDEX_BASE_PRICES[index] || 24850;
       const fallbackPoints = generateFallbackChart(index, period, priceVal);
       setChartData(fallbackPoints);
       setDataSource('fallback');
     }
   }, [indicesMap]);
+
+  // On mount and market switch: load indices FIRST, then chart so prices are available
+  useEffect(() => {
+    const defaultIdx = selectedMarket === 'india' ? 'NIFTY 50' : 'S&P 500';
+    setSelectedIndex(defaultIdx);
+    loadIndices().then(freshMap => {
+      loadChart(defaultIdx, selectedPeriod, freshMap);
+    });
+  }, [selectedMarket]);
 
   // Periodic refresh
   useEffect(() => {
@@ -203,8 +216,7 @@ const MarketPerformance = ({ selectedMarket = 'india' }) => {
     loadChart(selectedIndex, p);
   };
   const handleRefresh = () => {
-    loadIndices();
-    loadChart(selectedIndex, selectedPeriod);
+    loadIndices().then(freshMap => loadChart(selectedIndex, selectedPeriod, freshMap));
   };
 
   const currentIdx = indicesMap[selectedIndex] || null;
