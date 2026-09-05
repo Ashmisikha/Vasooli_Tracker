@@ -894,7 +894,7 @@ def catch_all(path=''):
         return get_market_breadth()
     elif 'market/signal' in clean_path:
         return get_market_signal()
-    elif any(k in clean_path for k in ['market', 'analysis', 'signal', 'insights', 'risk', 'statistics']):
+    elif any(k in clean_path for k in ['market/statistics', 'statistics']):
         return get_market_statistics()
     elif 'analyze' in clean_path:
         parts = [p for p in clean_path.split('/') if p]
