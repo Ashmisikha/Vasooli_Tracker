@@ -42,11 +42,6 @@ Most watchlists show stock prices without context. Vasooli remembers your watchl
 - Shows: Price change, Risk change, Sentiment change, News activity, Volume anomaly
 - Since Last Check diff view
 
-#### 6. Clean, Professional Interface
-- Dark Green theme (trustworthy, financial-grade)
-- Inter font (professional, shield-like)
-- Light and Dark mode support
-- No mandatory login — try the demo instantly
 
 ### Tech Stack
 
