@@ -876,6 +876,10 @@ def catch_all(path=''):
         return get_market_sectors_analysis()
     elif 'market-analysis/insights' in clean_path:
         return get_market_insights()
+    elif 'market/indices/chart' in clean_path:
+        return get_market_index_chart_route()
+    elif 'market/indices' in clean_path:
+        return get_market_indices_route()
     elif any(k in clean_path for k in ['market/summary', 'market/overview']):
         return get_market_summary()
     elif 'market/breadth' in clean_path:
