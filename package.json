@@ -2,7 +2,7 @@
   "name": "vasooli-tracker-monorepo",
   "private": true,
   "scripts": {
-    "build": "cd frontend && npm run build && cd .. && rm -rf dist && cp -r frontend/dist dist"
+    "build": "cd frontend && npm install && npm run build && cd .. && rm -rf dist && cp -r frontend/dist dist"
   }
 }
 
