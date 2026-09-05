@@ -239,6 +239,17 @@ function AppLayout() {
         <main className="p-6 flex-1">
           <Routes>
             <Route 
+              path="/" 
+              element={
+                <Dashboard 
+                  selectedMarket={selectedMarket}
+                  onNavigate={handleNavigate}
+                  onSelectStock={handleSelectStock}
+                  onOpenAddModal={() => setIsAddModalOpen(true)}
+                />
+              } 
+            />
+            <Route 
               path="/dashboard" 
               element={
                 <Dashboard 
@@ -292,6 +303,17 @@ function AppLayout() {
                 />
               } 
             />
+            <Route 
+              path="*" 
+              element={
+                <Dashboard 
+                  selectedMarket={selectedMarket}
+                  onNavigate={handleNavigate}
+                  onSelectStock={handleSelectStock}
+                  onOpenAddModal={() => setIsAddModalOpen(true)}
+                />
+              } 
+            />
           </Routes>
         </main>
       </div>
@@ -315,7 +337,7 @@ export default function App() {
     <BrowserRouter>
       <ThemeProvider>
         <Routes>
-          <Route path="/" element={<Landing />} />
+          <Route path="/landing" element={<Landing />} />
           <Route path="/login" element={<Login />} />
           <Route path="/*" element={<AppLayout />} />
         </Routes>
