@@ -845,7 +845,7 @@ def get_market_indices_route():
     raw_path = request.path or ''
     req_path_param = request.args.get('path', '')
     raw_url = request.url or ''
-    if 'chart' in raw_path or 'chart' in req_path_param or 'chart' in raw_url:
+    if 'chart' in raw_path or 'chart' in req_path_param or 'chart' in raw_url or request.args.get('index'):
         return get_market_index_chart_route()
     market = request.args.get('market', 'india')
     indices_list = fetch_live_indices_summary()
