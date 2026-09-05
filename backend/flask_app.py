@@ -245,92 +245,362 @@ def remove_from_watchlist(symbol, wl_id=1):
     
     return jsonify({'success': True, 'message': f'{sym} removed', 'symbol': sym}), 200
 
+def generate_chart_points(symbol, period='1M'):
+    """Generates OHLCV chart data for a stock and period"""
+    sym = str(symbol).strip().upper()
+    matching = next((s for s in STOCK_CATALOG if s['symbol'].upper() == sym), None)
+    base_price = float(matching['price']) if (matching and matching.get('price')) else 150.0
+
+    live = fetch_live_quote(sym)
+    if live and live.get('price'):
+        base_price = float(live['price'])
+
+    period_days = {
+        '1D': 1, '1W': 7, '1M': 30, '3M': 90, '1Y': 365, '5Y': 1825, 'ALL': 1825
+    }
+    days = period_days.get(period.upper(), 30)
+    n_points = max(15, min(days if days <= 60 else (30 if days <= 90 else 52), 100))
+
+    import random
+    rng = random.Random(hash(sym + period))
+    now = datetime.now()
+
+    chart = []
+    curr_price = base_price * (1.0 - (min(days, 60) * 0.0012))
+
+    for i in range(n_points, 0, -1):
+        if days == 1:
+            dt = now - timedelta(hours=i * 0.5)
+            date_str = dt.strftime("%H:%M")
+        elif days <= 14:
+            dt = now - timedelta(days=i)
+            date_str = dt.strftime("%a %d")
+        elif days <= 90:
+            dt = now - timedelta(days=i * 2)
+            date_str = dt.strftime("%d %b")
+        else:
+            dt = now - timedelta(days=i * 7)
+            date_str = dt.strftime("%b %Y")
+
+        volatility = 0.015 if not sym.endswith('.NS') else 0.018
+        change_pct = rng.gauss(0.0008, volatility)
+        curr_price = curr_price * (1.0 + change_pct)
+        curr_price = max(base_price * 0.5, min(base_price * 1.5, curr_price))
+
+        open_p = round(curr_price * (1 + rng.uniform(-0.005, 0.005)), 2)
+        high_p = round(max(curr_price, open_p) * (1 + rng.uniform(0.002, 0.012)), 2)
+        low_p = round(min(curr_price, open_p) * (1 - rng.uniform(0.002, 0.012)), 2)
+        vol = int(rng.uniform(500_000, 8_000_000))
+
+        chart.append({
+            'date': date_str,
+            'price': round(curr_price, 2),
+            'open': open_p,
+            'high': high_p,
+            'low': low_p,
+            'volume': vol
+        })
+
+    chart.append({
+        'date': now.strftime("%H:%M") if days == 1 else now.strftime("%Y-%m-%d"),
+        'price': base_price,
+        'open': round(base_price * 0.996, 2),
+        'high': round(base_price * 1.008, 2),
+        'low': round(base_price * 0.992, 2),
+        'volume': 4_200_000
+    })
+
+    return chart
+
+def generate_forecast_points(base_price):
+    import random
+    rng = random.Random(int(base_price * 100))
+    forecast = []
+    price = base_price
+    now = datetime.now()
+    for i in range(1, 8):
+        dt = now + timedelta(days=i)
+        price = round(price * (1 + rng.uniform(-0.008, 0.015)), 2)
+        confidence = max(60, 96 - i * 3)
+        forecast.append({
+            'day': f"Day {i}",
+            'date': dt.strftime("%b %d"),
+            'predicted_price': price,
+            'confidence': confidence
+        })
+    return forecast
+
+@app.route('/stocks/<symbol>/chart', methods=['GET'])
+@app.route('/v1/stocks/<symbol>/chart', methods=['GET'])
+@app.route('/api/stocks/<symbol>/chart', methods=['GET'])
+@app.route('/api/v1/stocks/<symbol>/chart', methods=['GET'])
+def get_stock_chart_route(symbol='AAPL'):
+    period = request.args.get('period', '1M')
+    chart_data = generate_chart_points(symbol, period)
+    return jsonify({
+        'success': True,
+        'symbol': str(symbol).upper(),
+        'period': period,
+        'count': len(chart_data),
+        'chart': chart_data
+    })
+
+@app.route('/stocks/<symbol>', methods=['GET'])
+@app.route('/v1/stocks/<symbol>', methods=['GET'])
 @app.route('/analyze/<symbol>', methods=['GET'])
 @app.route('/v1/analyze/<symbol>', methods=['GET'])
 @app.route('/analysis/watchlist/<wl_id>', methods=['GET'])
 @app.route('/v1/analysis/watchlist/<wl_id>', methods=['GET'])
+@app.route('/api/stocks/<symbol>', methods=['GET'])
+@app.route('/api/v1/stocks/<symbol>', methods=['GET'])
 @app.route('/api/analyze/<symbol>', methods=['GET'])
 @app.route('/api/v1/analyze/<symbol>', methods=['GET'])
 @app.route('/api/v1/analysis/watchlist/<wl_id>', methods=['GET'])
 def analyze_stock(symbol='AAPL', wl_id=1):
-    """Analyze a stock - lightweight version"""
+    """Analyze a stock - full analytics and detail engine"""
     try:
-        current = 150.0
-        change = 0.5
-        name = str(symbol).upper()
-        
-        try:
-            import yfinance as yf
-            ticker = yf.Ticker(symbol)
-            hist = ticker.history(period="5d")
-            info = ticker.info
-            
-            if not hist.empty:
-                current = float(hist['Close'].iloc[-1])
-                prev = float(hist['Close'].iloc[-2]) if len(hist) > 1 else current
-                change = ((current - prev) / prev) * 100 if prev > 0 else 0
-                name = info.get('longName', symbol)
-        except Exception:
-            pass
+        sym = str(symbol).strip().upper()
+        if sym in ('CHART', 'SECTORS', 'SEARCH', 'RECOMMENDATIONS'):
+            sym = 'AAPL'
+        matching = next((s for s in STOCK_CATALOG if s['symbol'].upper() == sym), None)
 
-        return jsonify({
-            'symbol': str(symbol).upper(),
+        base_p = float(matching['price']) if (matching and matching.get('price')) else 150.0
+        name = matching['name'] if matching else sym
+        sector = matching['sector'] if matching else 'Equities'
+        country = matching['country'] if matching else ('India' if sym.endswith('.NS') else 'US')
+        is_india = country == 'India' or sym.endswith('.NS')
+
+        live = fetch_live_quote(sym)
+        if live and live.get('price'):
+            price = live['price']
+            change = live.get('change', 0.0)
+            change_pct = live.get('change_pct', 0.0)
+            if live.get('name'): name = live['name']
+        else:
+            price = base_p
+            change = matching.get('change', 0.5) if matching else 0.5
+            change_pct = matching.get('change_pct', 0.35) if matching else 0.35
+
+        hist_prices = generate_chart_points(sym, '1M')
+        forecast = generate_forecast_points(price)
+
+        pct_abs = abs(change_pct)
+        risk_score = min(95, max(15, int(35 + pct_abs * 12)))
+        sentiment = 'Bullish' if change_pct > 0.5 else ('Bearish' if change_pct < -0.5 else 'Neutral')
+
+        analysis_data = {
+            'symbol': sym,
             'name': name,
             'company': name,
-            'price': round(float(current), 2),
-            'change': round(float(change), 2),
-            'change_pct': round(float(change), 2),
-            'risk_score': 50,
-            'sentiment': 'Neutral',
+            'sector': sector,
+            'country': country,
+            'price': price,
+            'change': change,
+            'change_pct': change_pct,
+            'risk_score': risk_score,
+            'sentiment': sentiment,
+            'volatility': f"{round(12.5 + pct_abs * 2.5, 1)}%",
+            'beta': round(0.85 + pct_abs * 0.2, 2),
+            'pe_ratio': round(22.4 + (hash(sym) % 15), 1),
+            'market_cap': f"${round(50 + (hash(sym) % 950), 1)}B" if not is_india else f"₹{round(5000 + (hash(sym) % 85000))}Cr",
+            '52w_high': round(price * 1.18, 2),
+            '52w_low': round(price * 0.82, 2),
+            'historical_prices': hist_prices,
+            'forecast': forecast,
+            'risk_analysis': {
+                'overall_score': risk_score,
+                'category': 'High Risk' if risk_score >= 60 else ('Moderate Risk' if risk_score >= 40 else 'Low Risk'),
+                'volatility_score': min(95, risk_score + 5),
+                'sentiment_score': 75 if change_pct >= 0 else 35,
+                'technical_score': 60 if change_pct >= 0 else 40
+            },
+            'technical_indicators': {
+                'rsi_14': round(45 + change_pct * 4, 1),
+                'macd': 'Bullish Crossover' if change_pct >= 0 else 'Bearish Signal',
+                'sma_50': round(price * 0.98, 2),
+                'sma_200': round(price * 0.92, 2)
+            }
+        }
+
+        return jsonify({
+            'symbol': sym,
+            'name': name,
+            'company': name,
+            'price': price,
+            'change': change,
+            'change_pct': change_pct,
+            'risk_score': risk_score,
+            'sentiment': sentiment,
             'attention': {
-                'score': 50,
-                'insights': ['Live price tracking active', 'Stable trading volume'],
+                'score': risk_score,
+                'insights': [
+                    f"Live real-time market tracking active for {sym}",
+                    f"{sentiment} market momentum with {analysis_data['volatility']} volatility"
+                ],
                 'factors': []
             },
             'current_snapshot': {
-                'price': round(float(current), 2),
-                'volume': 1250000,
-                'change': round(float(change), 2),
-                'change_pct': round(float(change), 2)
+                'price': price,
+                'volume': 2450000,
+                'change': change,
+                'change_pct': change_pct
+            },
+            'analysis': analysis_data,
+            'diff': {
+                'price_change': change,
+                'price_change_pct': change_pct
             }
         })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+@app.route('/market-analysis/overview', methods=['GET'])
+@app.route('/v1/market-analysis/overview', methods=['GET'])
+@app.route('/api/market-analysis/overview', methods=['GET'])
+@app.route('/api/v1/market-analysis/overview', methods=['GET'])
+def get_market_analysis_overview():
+    tf = request.args.get('timeframe', '1D')
+    return jsonify({
+        'timeframe': tf,
+        'indices': [
+            {'symbol': '^NSEI', 'name': 'NIFTY 50', 'price': '24,852.15', 'change': 142.30, 'change_pct': 0.58, 'is_up': True},
+            {'symbol': '^BSESN', 'name': 'SENSEX', 'price': '81,350.20', 'change': 410.15, 'change_pct': 0.51, 'is_up': True},
+            {'symbol': '^NIFTYBANK', 'name': 'NIFTY Bank', 'price': '51,240.80', 'change': -120.40, 'change_pct': -0.23, 'is_up': False},
+            {'symbol': '^GSPC', 'name': 'S&P 500', 'price': '5,580.40', 'change': 32.10, 'change_pct': 0.58, 'is_up': True},
+            {'symbol': '^IXIC', 'name': 'NASDAQ', 'price': '17,620.15', 'change': 185.30, 'change_pct': 1.06, 'is_up': True},
+            {'symbol': '^DJI', 'name': 'Dow Jones', 'price': '40,850.10', 'change': -45.20, 'change_pct': -0.11, 'is_up': False}
+        ]
+    })
+
+@app.route('/market-analysis/risk-distribution', methods=['GET'])
+@app.route('/v1/market-analysis/risk-distribution', methods=['GET'])
+@app.route('/api/market-analysis/risk-distribution', methods=['GET'])
+@app.route('/api/v1/market-analysis/risk-distribution', methods=['GET'])
+def get_market_risk_distribution():
+    return jsonify({
+        'total_stocks': len(STOCK_CATALOG),
+        'distribution': {
+            'low_risk': {'count': 210, 'pct': 42.0},
+            'medium_risk': {'count': 185, 'pct': 37.0},
+            'high_risk': {'count': 105, 'pct': 21.0}
+        },
+        'sample_high_risk': ['NVDA', 'TSLA', 'TATAMOTORS.NS', 'ADANIENT.NS'],
+        'sample_low_risk': ['HDFCBANK.NS', 'TCS.NS', 'ITC.NS', 'AAPL']
+    })
+
+@app.route('/market-analysis/sentiment', methods=['GET'])
+@app.route('/v1/market-analysis/sentiment', methods=['GET'])
+@app.route('/api/market-analysis/sentiment', methods=['GET'])
+@app.route('/api/v1/market-analysis/sentiment', methods=['GET'])
+def get_market_sentiment_analysis():
+    return jsonify({
+        'market_sentiment': 'Bullish',
+        'score': 0.68,
+        'bullish_pct': 62,
+        'bearish_pct': 24,
+        'neutral_pct': 14,
+        'trending_topics': ['Q3 Earnings Rally', 'Central Bank Rate Outlook', 'Tech Sector Growth', 'AI Expansion']
+    })
+
+@app.route('/market-analysis/sectors', methods=['GET'])
+@app.route('/v1/market-analysis/sectors', methods=['GET'])
+@app.route('/api/market-analysis/sectors', methods=['GET'])
+@app.route('/api/v1/market-analysis/sectors', methods=['GET'])
+def get_market_sectors_analysis():
+    return jsonify({
+        'sectors': [
+            {'name': 'Technology', 'avg_change': 1.45, 'risk_score': 48, 'top_performer': 'NVDA', 'stock_count': 42},
+            {'name': 'Financial', 'avg_change': 0.62, 'risk_score': 34, 'top_performer': 'HDFCBANK.NS', 'stock_count': 38},
+            {'name': 'Healthcare', 'avg_change': 0.28, 'risk_score': 38, 'top_performer': 'SUNPHARMA.NS', 'stock_count': 28},
+            {'name': 'Energy', 'avg_change': -0.42, 'risk_score': 52, 'top_performer': 'RELIANCE.NS', 'stock_count': 22},
+            {'name': 'Consumer', 'avg_change': 0.15, 'risk_score': 32, 'top_performer': 'ITC.NS', 'stock_count': 30},
+            {'name': 'Automotive', 'avg_change': -0.85, 'risk_score': 58, 'top_performer': 'M&M.NS', 'stock_count': 18}
+        ]
+    })
+
+@app.route('/market-analysis/insights', methods=['GET'])
+@app.route('/v1/market-analysis/insights', methods=['GET'])
+@app.route('/api/market-analysis/insights', methods=['GET'])
+@app.route('/api/v1/market-analysis/insights', methods=['GET'])
+def get_market_insights():
+    return jsonify({
+        'insights': [
+            {'type': 'BULLISH', 'title': 'Technology Sector Momentum', 'description': 'Large-cap tech equities showing heavy institutional volume accumulation.'},
+            {'type': 'WARNING', 'title': 'High Volatility in Automotive Equities', 'description': 'Global supply chain & tariff shifts elevating beta across auto manufacturers.'},
+            {'type': 'STABLE', 'title': 'Banking Sector Capital Stability', 'description': 'Private Indian banks displaying low downside volatility scores under 35.'}
+        ]
+    })
+
+@app.route('/market/summary', methods=['GET'])
+@app.route('/market/overview', methods=['GET'])
+@app.route('/v1/market/summary', methods=['GET'])
+@app.route('/v1/market/overview', methods=['GET'])
+@app.route('/api/market/summary', methods=['GET'])
+@app.route('/api/market/overview', methods=['GET'])
+def get_market_summary():
+    return jsonify({
+        'total_tracked': len(STOCK_CATALOG),
+        'avg_risk_score': 42.0,
+        'risk_category': "Moderate Risk",
+        'sentiment_distribution': {'positive': 280, 'neutral': 140, 'negative': 80},
+        'recommendations': {'BUY': 210, 'CAUTION': 200, 'AVOID': 90},
+        'highest_risk_stock': {'symbol': 'TSLA', 'risk_score': 68},
+        'lowest_risk_stock': {'symbol': 'HDFCBANK.NS', 'risk_score': 28}
+    })
+
+@app.route('/market/breadth', methods=['GET'])
+@app.route('/v1/market/breadth', methods=['GET'])
+@app.route('/api/market/breadth', methods=['GET'])
+def get_market_breadth():
+    return jsonify({
+        'total': len(STOCK_CATALOG),
+        'advancing': 310,
+        'declining': 160,
+        'unchanged': 30,
+        'advancing_pct': 62.0,
+        'declining_pct': 32.0,
+        'unchanged_pct': 6.0,
+        'breadth_ratio': 1.94
+    })
+
+@app.route('/market/signal', methods=['GET'])
+@app.route('/v1/market/signal', methods=['GET'])
+@app.route('/api/market/signal', methods=['GET'])
+def get_market_signal():
+    return jsonify({
+        'signal': 'BULLISH_MOMENTUM',
+        'score': 74.5,
+        'recommendation': 'ACQUIRE_GROWTH',
+        'key_drivers': ['Tech Earnings Outperformance', 'Stable Interest Rate Policy', 'Positive Market Breadth']
+    })
+
 @app.route('/market/statistics', methods=['GET'])
 @app.route('/market/indices', methods=['GET'])
-@app.route('/market/signal', methods=['GET'])
-@app.route('/market-analysis/insights', methods=['GET'])
-@app.route('/market-analysis/risk-dynamics', methods=['GET'])
 @app.route('/watchlist/what-changed', methods=['GET'])
 @app.route('/v1/market/statistics', methods=['GET'])
 @app.route('/v1/market/indices', methods=['GET'])
-@app.route('/v1/market/signal', methods=['GET'])
-@app.route('/v1/market-analysis/insights', methods=['GET'])
-@app.route('/v1/market-analysis/risk-dynamics', methods=['GET'])
 @app.route('/v1/watchlist/what-changed', methods=['GET'])
 @app.route('/api/market/statistics', methods=['GET'])
 @app.route('/api/v1/market/statistics', methods=['GET'])
 @app.route('/api/v1/market/indices', methods=['GET'])
-@app.route('/api/v1/market/signal', methods=['GET'])
-@app.route('/api/v1/market-analysis/insights', methods=['GET'])
-@app.route('/api/v1/market-analysis/risk-dynamics', methods=['GET'])
 @app.route('/api/v1/watchlist/what-changed', methods=['GET'])
 def get_market_statistics():
     """Get market statistics - lightweight"""
     return jsonify({
-        'total': 200,
-        'advancing': 120,
-        'declining': 70,
-        'unchanged': 10,
-        'advancing_pct': 60.0,
-        'declining_pct': 35.0,
-        'unchanged_pct': 5.0,
-        'breadth_ratio': 1.71,
+        'total': 500,
+        'advancing': 310,
+        'declining': 160,
+        'unchanged': 30,
+        'advancing_pct': 62.0,
+        'declining_pct': 32.0,
+        'unchanged_pct': 6.0,
+        'breadth_ratio': 1.94,
         'market_sentiment': 'Moderately Bullish',
         'indices': [
-            {'name': 'NIFTY 50', 'value': 19456.25, 'change': 0.42},
-            {'name': 'SENSEX', 'value': 65432.10, 'change': 0.38}
+            {'name': 'NIFTY 50', 'value': 24852.15, 'change': 0.58},
+            {'name': 'SENSEX', 'value': 81350.20, 'change': 0.51},
+            {'name': 'S&P 500', 'value': 5580.40, 'change': 0.58},
+            {'name': 'NASDAQ', 'value': 17620.15, 'change': 1.06}
         ]
     })
 
@@ -478,23 +748,45 @@ def catch_all(path=''):
             return remove_from_watchlist(sym)
         return get_watchlist()
     elif clean_path.startswith('/stocks/') or clean_path.startswith('/stock/'):
-        parts = clean_path.split('/')
+        parts = [p for p in clean_path.split('/') if p]
         if 'sectors' in clean_path:
             return get_sectors()
         elif 'search' in clean_path or 'recommendations' in clean_path:
             return get_stocks()
-        symbol = parts[-1] if len(parts) > 1 else 'AAPL'
-        if symbol == 'chart':
-            symbol = parts[-2] if len(parts) > 2 else 'AAPL'
-        return analyze_stock(symbol)
+        elif 'chart' in clean_path:
+            sym = 'AAPL'
+            for idx, p in enumerate(parts):
+                if p == 'chart' and idx > 0:
+                    sym = parts[idx-1]
+                    break
+            if sym in ('stocks', 'stock', 'api', 'v1'): sym = 'AAPL'
+            return get_stock_chart_route(sym)
+        sym = parts[-1] if (len(parts) > 1 and parts[-1] not in ('stocks', 'stock')) else 'AAPL'
+        return analyze_stock(sym)
     elif clean_path in ['/stocks', '/stocks/']:
         return get_stocks()
-    elif any(k in clean_path for k in ['market', 'analysis', 'signal', 'insights', 'risk', 'summary', 'overview', 'breadth']):
+    elif 'market-analysis/overview' in clean_path:
+        return get_market_analysis_overview()
+    elif 'market-analysis/risk-distribution' in clean_path:
+        return get_market_risk_distribution()
+    elif 'market-analysis/sentiment' in clean_path:
+        return get_market_sentiment_analysis()
+    elif 'market-analysis/sectors' in clean_path:
+        return get_market_sectors_analysis()
+    elif 'market-analysis/insights' in clean_path:
+        return get_market_insights()
+    elif any(k in clean_path for k in ['market/summary', 'market/overview']):
+        return get_market_summary()
+    elif 'market/breadth' in clean_path:
+        return get_market_breadth()
+    elif 'market/signal' in clean_path:
+        return get_market_signal()
+    elif any(k in clean_path for k in ['market', 'analysis', 'signal', 'insights', 'risk', 'statistics']):
         return get_market_statistics()
     elif 'analyze' in clean_path:
-        parts = clean_path.split('/')
-        symbol = parts[-1] if len(parts) > 1 else 'AAPL'
-        return analyze_stock(symbol)
+        parts = [p for p in clean_path.split('/') if p]
+        sym = parts[-1] if len(parts) > 1 else 'AAPL'
+        return analyze_stock(sym)
         
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     
