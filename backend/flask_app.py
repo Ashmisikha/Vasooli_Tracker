@@ -590,14 +590,132 @@ def get_market_signal():
     })
 
 INDICES_DATA = {
-    'NIFTY 50': {'name': 'NIFTY 50', 'price': 24852.15, 'change': 142.30, 'change_pct': 0.58, 'is_up': True, 'fifty_two_week_high': '25,078.30', 'fifty_two_week_low': '21,280.50'},
-    'SENSEX': {'name': 'SENSEX', 'price': 81350.20, 'change': 410.15, 'change_pct': 0.51, 'is_up': True, 'fifty_two_week_high': '82,129.40', 'fifty_two_week_low': '70,050.20'},
-    'BANK NIFTY': {'name': 'BANK NIFTY', 'price': 51240.80, 'change': -120.40, 'change_pct': -0.23, 'is_up': False, 'fifty_two_week_high': '53,357.70', 'fifty_two_week_low': '44,420.00'},
-    'NIFTY IT': {'name': 'NIFTY IT', 'price': 41850.50, 'change': 320.10, 'change_pct': 0.77, 'is_up': True, 'fifty_two_week_high': '43,100.00', 'fifty_two_week_low': '31,200.00'},
-    'S&P 500': {'name': 'S&P 500', 'price': 5580.40, 'change': 32.10, 'change_pct': 0.58, 'is_up': True, 'fifty_two_week_high': '5,670.00', 'fifty_two_week_low': '4,100.00'},
-    'NASDAQ': {'name': 'NASDAQ', 'price': 17620.15, 'change': 185.30, 'change_pct': 1.06, 'is_up': True, 'fifty_two_week_high': '18,670.00', 'fifty_two_week_low': '12,500.00'},
-    'DOW JONES': {'name': 'DOW JONES', 'price': 40850.10, 'change': -45.20, 'change_pct': -0.11, 'is_up': False, 'fifty_two_week_high': '41,500.00', 'fifty_two_week_low': '32,300.00'}
+    'NIFTY 50': {'name': 'NIFTY 50', 'price': 23897.70, 'change': 142.30, 'change_pct': 0.58, 'is_up': True, 'fifty_two_week_high': '26,277.35', 'fifty_two_week_low': '21,280.50'},
+    'SENSEX': {'name': 'SENSEX', 'price': 76515.43, 'change': 410.15, 'change_pct': 0.51, 'is_up': True, 'fifty_two_week_high': '85,978.25', 'fifty_two_week_low': '70,050.20'},
+    'BANK NIFTY': {'name': 'BANK NIFTY', 'price': 57369.65, 'change': -120.40, 'change_pct': -0.23, 'is_up': False, 'fifty_two_week_high': '58,250.00', 'fifty_two_week_low': '44,420.00'},
+    'NIFTY IT': {'name': 'NIFTY IT', 'price': 30695.10, 'change': 320.10, 'change_pct': 0.77, 'is_up': True, 'fifty_two_week_high': '43,100.00', 'fifty_two_week_low': '31,200.00'},
+    'S&P 500': {'name': 'S&P 500', 'price': 7718.60, 'change': 32.10, 'change_pct': 0.58, 'is_up': True, 'fifty_two_week_high': '7,800.00', 'fifty_two_week_low': '5,100.00'},
+    'NASDAQ': {'name': 'NASDAQ', 'price': 26506.99, 'change': 185.30, 'change_pct': 1.06, 'is_up': True, 'fifty_two_week_high': '27,100.00', 'fifty_two_week_low': '17,500.00'},
+    'DOW JONES': {'name': 'DOW JONES', 'price': 53414.25, 'change': -45.20, 'change_pct': -0.11, 'is_up': False, 'fifty_two_week_high': '54,500.00', 'fifty_two_week_low': '37,300.00'}
 }
+
+INDEX_SYMBOL_MAP = {
+    'NIFTY 50': '^NSEI',
+    'SENSEX': '^BSESN',
+    'BANK NIFTY': '^NSEBANK',
+    'NIFTY IT': '^CNXIT',
+    'S&P 500': '^GSPC',
+    'NASDAQ': '^IXIC',
+    'DOW JONES': '^DJI'
+}
+
+INDEX_PERIOD_MAP = {
+    '1D': ('1d', '5m'),
+    '1W': ('5d', '15m'),
+    '1M': ('1mo', '1d'),
+    '3M': ('3mo', '1d'),
+    '1Y': ('1y', '1wk'),
+    '5Y': ('5y', '1mo'),
+    'ALL': ('max', '1mo')
+}
+
+def fetch_live_index_chart(index_name, period='1M'):
+    """Fetches real live index chart data from Yahoo Finance API"""
+    idx_upper = str(index_name).strip().upper()
+    symbol = INDEX_SYMBOL_MAP.get(idx_upper, '^NSEI')
+    y_range, y_interval = INDEX_PERIOD_MAP.get(period.upper(), ('1mo', '1d'))
+
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    }
+
+    try:
+        url = f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol}?interval={y_interval}&range={y_range}"
+        resp = requests.get(url, headers=headers, timeout=3.5)
+        if resp.status_code == 200:
+            result = resp.json().get('chart', {}).get('result')
+            if result and len(result) > 0:
+                data_obj = result[0]
+                timestamps = data_obj.get('timestamp', [])
+                quote = data_obj.get('indicators', {}).get('quote', [{}])[0]
+                closes = quote.get('close', [])
+                opens = quote.get('open', [])
+                highs = quote.get('high', [])
+                lows = quote.get('low', [])
+
+                chart_points = []
+                for i in range(len(timestamps)):
+                    if i < len(closes) and closes[i] is not None:
+                        dt = datetime.fromtimestamp(timestamps[i])
+                        if y_interval in ('5m', '15m', '1m'):
+                            label = dt.strftime("%H:%M")
+                        elif y_interval in ('1wk', '1mo'):
+                            label = dt.strftime("%b %Y")
+                        else:
+                            label = dt.strftime("%d %b")
+
+                        c = round(float(closes[i]), 2)
+                        o = round(float(opens[i]), 2) if (i < len(opens) and opens[i] is not None) else c
+                        h = round(float(highs[i]), 2) if (i < len(highs) and highs[i] is not None) else c
+                        l = round(float(lows[i]), 2) if (i < len(lows) and lows[i] is not None) else c
+
+                        chart_points.append({
+                            'date': label,
+                            'price': c,
+                            'open': o,
+                            'high': h,
+                            'low': l
+                        })
+
+                if len(chart_points) > 0:
+                    return chart_points, 'live_market'
+    except Exception as e:
+        print(f"[Live Index Chart Error]: {index_name} -> {e}")
+
+    return generate_chart_points(symbol, period), 'synthetic_fallback'
+
+def fetch_live_indices_summary():
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    }
+
+    def _fetch_single_idx(item_tuple):
+        name, symbol = item_tuple
+        try:
+            url = f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol}?interval=1d&range=5d"
+            resp = requests.get(url, headers=headers, timeout=2.5)
+            if resp.status_code == 200:
+                result = resp.json().get('chart', {}).get('result')
+                if result and len(result) > 0:
+                    meta = result[0].get('meta', {})
+                    price = meta.get('regularMarketPrice') or meta.get('chartPreviousClose')
+                    prev_close = meta.get('chartPreviousClose', price)
+                    if price is not None:
+                        p = round(float(price), 2)
+                        pc = round(float(prev_close), 2) if prev_close else p
+                        change = round(p - pc, 2)
+                        change_pct = round(((p - pc) / pc) * 100, 2) if pc > 0 else 0.0
+                        high_52 = meta.get('fiftyTwoWeekHigh') or round(p * 1.12, 2)
+                        low_52 = meta.get('fiftyTwoWeekLow') or round(p * 0.88, 2)
+
+                        return {
+                            'name': name,
+                            'price': p,
+                            'change': change,
+                            'change_pct': change_pct,
+                            'is_up': change_pct >= 0,
+                            'fifty_two_week_high': f"{float(high_52):,.2f}",
+                            'fifty_two_week_low': f"{float(low_52):,.2f}"
+                        }
+        except Exception:
+            pass
+
+        return INDICES_DATA.get(name, {'name': name, 'price': 24000.0, 'change': 100.0, 'change_pct': 0.5, 'is_up': True})
+
+    with ThreadPoolExecutor(max_workers=7) as executor:
+        results = list(executor.map(_fetch_single_idx, INDEX_SYMBOL_MAP.items()))
+
+    return results
 
 @app.route('/market/indices/chart', methods=['GET'])
 @app.route('/v1/market/indices/chart', methods=['GET'])
@@ -607,73 +725,16 @@ def get_market_index_chart_route():
     index_name = request.args.get('index', 'NIFTY 50')
     period = request.args.get('period', '1M')
 
-    idx_info = INDICES_DATA.get(index_name.upper(), INDICES_DATA.get('NIFTY 50'))
-    base_price = float(idx_info['price'])
-
-    period_days = {
-        '1D': 1, '1W': 7, '1M': 30, '3M': 90, '1Y': 365, '5Y': 1825, 'ALL': 1825
-    }
-    days = period_days.get(period.upper(), 30)
-    n_points = max(15, min(days if days <= 60 else (30 if days <= 90 else 52), 100))
-
-    import random
-    rng = random.Random(hash(index_name + period))
-    now = datetime.now()
-
-    chart = []
-    curr_price = base_price * (1.0 - (min(days, 60) * 0.0012))
-
-    for i in range(n_points, 0, -1):
-        if days == 1:
-            dt = now - timedelta(hours=i * 0.5)
-            date_str = dt.strftime("%H:%M")
-        elif days <= 14:
-            dt = now - timedelta(days=i)
-            date_str = dt.strftime("%a %d")
-        elif days <= 90:
-            dt = now - timedelta(days=i * 2)
-            date_str = dt.strftime("%d %b")
-        else:
-            dt = now - timedelta(days=i * 7)
-            date_str = dt.strftime("%b %Y")
-
-        change_pct = rng.gauss(0.0008, 0.008)
-        curr_price = curr_price * (1.0 + change_pct)
-        curr_price = max(base_price * 0.7, min(base_price * 1.3, curr_price))
-
-        open_p = round(curr_price * (1 + rng.uniform(-0.003, 0.003)), 2)
-        high_p = round(max(curr_price, open_p) * (1 + rng.uniform(0.001, 0.008)), 2)
-        low_p = round(min(curr_price, open_p) * (1 - rng.uniform(0.001, 0.008)), 2)
-
-        chart.append({
-            'date': date_str,
-            'price': round(curr_price, 2),
-            'open': open_p,
-            'high': high_p,
-            'low': low_p
-        })
-
-    chart.append({
-        'date': now.strftime("%H:%M") if days == 1 else now.strftime("%Y-%m-%d"),
-        'price': base_price,
-        'open': round(base_price * 0.998, 2),
-        'high': round(base_price * 1.004, 2),
-        'low': round(base_price * 0.996, 2)
-    })
-
+    chart_points, source = fetch_live_index_chart(index_name, period)
     return jsonify({
         'success': True,
         'index': index_name,
         'period': period,
-        'source': 'live_market',
-        'count': len(chart),
-        'chart': chart
+        'source': source,
+        'count': len(chart_points),
+        'chart': chart_points
     })
 
-@app.route('/market/indices/chart', methods=['GET'])
-@app.route('/v1/market/indices/chart', methods=['GET'])
-@app.route('/api/market/indices/chart', methods=['GET'])
-@app.route('/api/v1/market/indices/chart', methods=['GET'])
 @app.route('/market/indices', methods=['GET'])
 @app.route('/v1/market/indices', methods=['GET'])
 @app.route('/api/market/indices', methods=['GET'])
@@ -684,7 +745,7 @@ def get_market_indices_route():
     if 'chart' in raw_path or 'index' in request.args or 'chart' in req_path_param:
         return get_market_index_chart_route()
     market = request.args.get('market', 'india')
-    indices_list = list(INDICES_DATA.values())
+    indices_list = fetch_live_indices_summary()
     return jsonify({
         'success': True,
         'market': market,
