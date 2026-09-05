@@ -52,6 +52,35 @@ async function getDefaultWatchlistId() {
   return 1;
 }
 
+function getLocalWatchlistSymbols() {
+  try {
+    const stored = localStorage.getItem('vasooli_local_watchlist');
+    return stored ? JSON.parse(stored) : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+function saveLocalWatchlistSymbol(symbol) {
+  try {
+    const list = getLocalWatchlistSymbols();
+    const cleanSym = symbol.trim().toUpperCase();
+    if (!list.includes(cleanSym)) {
+      list.push(cleanSym);
+      localStorage.setItem('vasooli_local_watchlist', JSON.stringify(list));
+    }
+  } catch (e) {}
+}
+
+function removeLocalWatchlistSymbol(symbol) {
+  try {
+    const list = getLocalWatchlistSymbols();
+    const cleanSym = symbol.trim().toUpperCase();
+    const updated = list.filter(s => s !== cleanSym);
+    localStorage.setItem('vasooli_local_watchlist', JSON.stringify(updated));
+  } catch (e) {}
+}
+
 export async function fetchWatchlist(userId = 'default') {
   try {
     const wlId = await getDefaultWatchlistId();
@@ -84,25 +113,50 @@ export async function fetchWatchlist(userId = 'default') {
       }
     });
 
+    const localSymbols = getLocalWatchlistSymbols();
+    const stockMap = new Map();
+
+    (rawStocks || []).forEach(s => {
+      if (typeof s === 'string') {
+        stockMap.set(s.toUpperCase(), { symbol: s.toUpperCase() });
+      } else if (s && s.symbol) {
+        stockMap.set(s.symbol.toUpperCase(), s);
+      }
+    });
+
+    localSymbols.forEach(sym => {
+      if (!stockMap.has(sym)) {
+        stockMap.set(sym, { symbol: sym });
+      }
+    });
+
     const allSymbols = Array.from(new Set([
-      ...rawStocks.map(s => (typeof s === 'string' ? s : s.symbol || '').toUpperCase()).filter(Boolean),
+      ...Array.from(stockMap.keys()),
       ...Array.from(analysisMap.keys())
     ]));
 
     const formattedData = allSymbols.map(sym => {
       const item = analysisMap.get(sym);
+      const stockObj = stockMap.get(sym) || {};
+      
+      const price = stockObj.price !== undefined ? Number(stockObj.price) : Number(item?.current_snapshot?.price || 150.0);
+      const change = stockObj.change !== undefined ? Number(stockObj.change) : Number(item?.current_snapshot?.change || 0.5);
+      const change_pct = stockObj.change_pct !== undefined ? Number(stockObj.change_pct) : Number(item?.current_snapshot?.change_pct || 0.5);
+      const risk_score = stockObj.risk_score !== undefined ? Number(stockObj.risk_score) : Number(item?.attention?.score || 42);
+
       return {
         symbol: sym,
-        name: sym,
-        company: sym,
-        price: Number(item?.current_snapshot?.price || 2450.0),
-        attention_score: Number(item?.attention?.score || 50),
-        risk_score: Number(item?.attention?.score || 50),
+        name: stockObj.name || stockObj.company || item?.name || sym,
+        company: stockObj.company || stockObj.name || sym,
+        price,
+        change,
+        change_pct,
+        risk_score,
+        attention_score: risk_score,
+        sector: stockObj.sector || 'Equities',
         insights: item?.attention?.insights || ['Live price tracking active'],
         factors: item?.attention?.factors || [],
-        volume: item?.current_snapshot?.volume || 1250000,
-        change_pct: Number(item?.current_snapshot?.change_pct || 0.5),
-        change: Number(item?.current_snapshot?.change || 0.5)
+        volume: stockObj.volume || item?.current_snapshot?.volume || 1250000
       };
     });
 
@@ -113,9 +167,9 @@ export async function fetchWatchlist(userId = 'default') {
   }
 }
 
-
 export async function addStockToWatchlist(symbol, notes = '', tags = '', userId = 'default') {
   const cleanSym = symbol.trim().toUpperCase();
+  saveLocalWatchlistSymbol(cleanSym);
   const wlId = await getDefaultWatchlistId();
   
   const endpoints = [
@@ -140,8 +194,6 @@ export async function addStockToWatchlist(symbol, notes = '', tags = '', userId 
     }
   }
   
-  // If all endpoints failed, still return success for demo mode
-  // This prevents "Not authenticated" or generic error popups from reaching the user
   const errMsg = lastError?.message || '';
   const isAuthError = errMsg.toLowerCase().includes('auth') || errMsg.toLowerCase().includes('401') || errMsg.toLowerCase().includes('not authenticated');
   if (isAuthError || !lastError) {
@@ -152,10 +204,11 @@ export async function addStockToWatchlist(symbol, notes = '', tags = '', userId 
   throw lastError || new Error(`Failed to add ${cleanSym} to watchlist`);
 }
 
-
 export async function removeStockFromWatchlist(symbol, userId = 'default') {
+  const cleanSym = symbol.trim().toUpperCase();
+  removeLocalWatchlistSymbol(cleanSym);
   const wlId = await getDefaultWatchlistId();
-  const res = await fetchWithFallback(`/watchlists/${wlId}/stocks/${symbol.toUpperCase()}`, {
+  const res = await fetchWithFallback(`/watchlists/${wlId}/stocks/${cleanSym}`, {
     method: 'DELETE',
   });
   

@@ -117,6 +117,13 @@ def health_check():
         'message': 'Vasooli Tracker API is running'
     })
 
+DEFAULT_WATCHLIST_SYMBOLS = ['RELIANCE.NS', 'TCS.NS', 'INFY.NS', 'HDFCBANK.NS', 'AAPL', 'NVDA', 'TSLA']
+
+def get_current_watchlist_symbols():
+    if not hasattr(app, 'watchlist_items') or not app.watchlist_items:
+        app.watchlist_items = list(DEFAULT_WATCHLIST_SYMBOLS)
+    return app.watchlist_items
+
 @app.route('/watchlist', methods=['GET'])
 @app.route('/watchlists', methods=['GET'])
 @app.route('/watchlists/<wl_id>', methods=['GET'])
@@ -128,55 +135,65 @@ def health_check():
 @app.route('/api/v1/watchlists', methods=['GET'])
 @app.route('/api/v1/watchlists/<wl_id>', methods=['GET'])
 def get_watchlist(wl_id=1):
-    """Get watchlist with cached data"""
+    """Get watchlist with live catalog/quote resolution"""
     try:
-        if is_cache_valid('watchlist'):
-            return jsonify(cache['watchlist'])
+        symbols = get_current_watchlist_symbols()
+        
+        # Check cache if valid
+        if is_cache_valid('watchlist') and 'watchlist' in cache:
+            cached_data = cache['watchlist']
+            cached_syms = [s['symbol'] for s in cached_data.get('data', [])]
+            if set(cached_syms) == set(symbols):
+                return jsonify(cached_data)
         
         data = []
-        try:
-            import yfinance as yf
-            symbols = ['AAPL', 'TSLA', 'NVDA', 'META', 'AMZN', 'GOOGL']
-            
-            for symbol in symbols[:5]:
-                try:
-                    ticker = yf.Ticker(symbol)
-                    hist = ticker.history(period="2d")
-                    info = ticker.info
-                    
-                    if not hist.empty:
-                        current = hist['Close'].iloc[-1]
-                        prev = hist['Close'].iloc[-2] if len(hist) > 1 else current
-                        change = ((current - prev) / prev) * 100 if prev > 0 else 0
-                        
-                        data.append({
-                            'symbol': symbol,
-                            'price': round(float(current), 2),
-                            'change': round(float(change), 2),
-                            'change_pct': round(float(change), 2),
-                            'name': info.get('longName', symbol),
-                            'company': info.get('longName', symbol)
-                        })
-                except Exception:
-                    continue
-        except Exception:
-            pass
-
-        if not data:
-            data = [
-                {'symbol': 'RELIANCE.NS', 'name': 'Reliance Industries', 'company': 'Reliance Industries', 'price': 2450.0, 'change': 0.8, 'change_pct': 0.8},
-                {'symbol': 'TCS.NS', 'name': 'Tata Consultancy Services', 'company': 'Tata Consultancy Services', 'price': 3520.0, 'change': -0.4, 'change_pct': -0.4},
-                {'symbol': 'INFY.NS', 'name': 'Infosys Limited', 'company': 'Infosys Limited', 'price': 1480.0, 'change': 1.2, 'change_pct': 1.2},
-                {'symbol': 'AAPL', 'name': 'Apple Inc.', 'company': 'Apple Inc.', 'price': 185.5, 'change': 0.5, 'change_pct': 0.5},
-                {'symbol': 'NVDA', 'name': 'NVIDIA Corp', 'company': 'NVIDIA Corp', 'price': 460.2, 'change': 2.4, 'change_pct': 2.4},
-                {'symbol': 'TSLA', 'name': 'Tesla Inc.', 'company': 'Tesla Inc.', 'price': 248.5, 'change': -1.1, 'change_pct': -1.1}
-            ]
+        for symbol in symbols:
+            sym_upper = symbol.strip().upper()
+            matching = next((s for s in STOCK_CATALOG if s['symbol'].upper() == sym_upper), None)
+            if matching:
+                data.append({
+                    'symbol': matching['symbol'],
+                    'name': matching.get('name', sym_upper),
+                    'company': matching.get('name', sym_upper),
+                    'price': float(matching.get('price', 150.0)),
+                    'change': float(matching.get('change', 1.2)),
+                    'change_pct': float(matching.get('change_pct', 0.8)),
+                    'sector': matching.get('sector', 'General'),
+                    'risk_score': matching.get('risk_score', 40),
+                    'volume': matching.get('volume', '10M')
+                })
+            else:
+                live = fetch_live_quote(sym_upper)
+                if live and live.get('price'):
+                    data.append({
+                        'symbol': sym_upper,
+                        'name': live.get('name', sym_upper),
+                        'company': live.get('company', sym_upper),
+                        'price': float(live.get('price', 150.0)),
+                        'change': float(live.get('change', 1.2)),
+                        'change_pct': float(live.get('change_pct', 0.8)),
+                        'sector': 'Equity',
+                        'risk_score': live.get('risk_score', 45),
+                        'volume': live.get('volume', 1250000)
+                    })
+                else:
+                    data.append({
+                        'symbol': sym_upper,
+                        'name': sym_upper,
+                        'company': sym_upper,
+                        'price': 150.0,
+                        'change': 1.2,
+                        'change_pct': 0.8,
+                        'sector': 'Equity',
+                        'risk_score': 45,
+                        'volume': '5M'
+                    })
         
         response = {
             'success': True,
             'data': data,
             'watchlist': data,
-            'stocks': [s['symbol'] for s in data],
+            'stocks': symbols,
             'count': len(data)
         }
         
@@ -193,8 +210,7 @@ def get_watchlist(wl_id=1):
             'data': [],
             'watchlist': [],
             'stocks': [],
-            'count': 0,
-            'warning': 'Using empty fallback'
+            'count': 0
         }), 200
 
 @app.route('/watchlist', methods=['POST'])
@@ -211,23 +227,25 @@ def get_watchlist(wl_id=1):
 @app.route('/api/v1/watchlists/<wl_id>/stocks', methods=['POST'])
 @app.route('/api/v1/watchlists/stocks', methods=['POST'])
 def add_to_watchlist(wl_id=1):
-    """Add stock to watchlist - simple version"""
+    """Add stock to watchlist"""
     data = request.json or {}
     symbol = data.get('symbol', '').strip().upper()
     
     if not symbol:
         return jsonify({'success': False, 'error': 'Symbol is required'}), 400
     
-    if not hasattr(app, 'watchlist_items'):
-        app.watchlist_items = []
+    symbols = get_current_watchlist_symbols()
+    if symbol not in symbols:
+        symbols.append(symbol)
     
-    if symbol not in app.watchlist_items:
-        app.watchlist_items.append(symbol)
+    cache.pop('watchlist', None)
+    cache_time.pop('watchlist', None)
     
     return jsonify({
         'success': True,
         'message': f'{symbol} added to watchlist',
-        'symbol': symbol
+        'symbol': symbol,
+        'watchlist': symbols
     }), 200
 
 @app.route('/watchlist/<symbol>', methods=['DELETE'])
@@ -240,20 +258,37 @@ def add_to_watchlist(wl_id=1):
 def remove_from_watchlist(symbol, wl_id=1):
     """Remove stock from watchlist"""
     sym = symbol.strip().upper()
-    if hasattr(app, 'watchlist_items') and sym in app.watchlist_items:
-        app.watchlist_items.remove(sym)
+    symbols = get_current_watchlist_symbols()
+    if sym in symbols:
+        symbols.remove(sym)
     
-    return jsonify({'success': True, 'message': f'{sym} removed', 'symbol': sym}), 200
+    cache.pop('watchlist', None)
+    cache_time.pop('watchlist', None)
+    
+    return jsonify({'success': True, 'message': f'{sym} removed', 'symbol': sym, 'watchlist': symbols}), 200
+
+INDEX_BASE_PRICES = {
+    '^NSEI': 24852.15,
+    '^BSESN': 81350.20,
+    '^NSEBANK': 51240.80,
+    '^CNXIT': 41850.50,
+    '^GSPC': 5580.40,
+    '^IXIC': 17620.15,
+    '^DJI': 40850.10
+}
 
 def generate_chart_points(symbol, period='1M'):
     """Generates OHLCV chart data for a stock and period"""
     sym = str(symbol).strip().upper()
-    matching = next((s for s in STOCK_CATALOG if s['symbol'].upper() == sym), None)
-    base_price = float(matching['price']) if (matching and matching.get('price')) else 150.0
+    if sym in INDEX_BASE_PRICES:
+        base_price = INDEX_BASE_PRICES[sym]
+    else:
+        matching = next((s for s in STOCK_CATALOG if s['symbol'].upper() == sym), None)
+        base_price = float(matching['price']) if (matching and matching.get('price')) else 150.0
 
-    live = fetch_live_quote(sym)
-    if live and live.get('price'):
-        base_price = float(live['price'])
+        live = fetch_live_quote(sym)
+        if live and live.get('price'):
+            base_price = float(live['price'])
 
     period_days = {
         '1D': 1, '1W': 7, '1M': 30, '3M': 90, '1Y': 365, '5Y': 1825, 'ALL': 1825
