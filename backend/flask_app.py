@@ -1051,6 +1051,25 @@ def catch_all(path=''):
         clean_path = '/' + clean_path
     clean_path = clean_path.replace('//', '/')
     
+    has_api_prefix = any(raw_uri.startswith(p) for p in ['/api', '/v1', 'api/', 'v1/']) or request.args.get('path', '').startswith(('v1/', 'api/'))
+    accept_hdr = request.headers.get('Accept', '')
+    is_json_request = 'application/json' in accept_hdr or request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json
+    is_api_call = has_api_prefix or is_json_request or request.method in ['POST', 'DELETE', 'PUT']
+
+    # Serve index.html SPA if browser is directly navigating to a page URL (e.g. /watchlist, /dashboard, /news)
+    if not is_api_call and request.method == 'GET' and not any(ext in raw_uri for ext in ['.js', '.css', '.png', '.jpg', '.svg', '.ico']):
+        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        for possible_index in [
+            os.path.join(base_dir, 'dist', 'index.html'),
+            os.path.join(base_dir, 'frontend', 'dist', 'index.html')
+        ]:
+            if os.path.exists(possible_index):
+                try:
+                    with open(possible_index, 'r', encoding='utf-8') as f:
+                        return f.read(), 200, {'Content-Type': 'text/html'}
+                except Exception:
+                    pass
+
     # Strip leading /api and /v1 prefixes
     for prefix in ['/api/v1', '/api', '/v1']:
         if clean_path.startswith(prefix):

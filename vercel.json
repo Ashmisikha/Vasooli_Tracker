@@ -13,6 +13,10 @@
     {
       "source": "/health",
       "destination": "/api/index.py?path=health"
+    },
+    {
+      "source": "/((?!api/|v1/|assets/|.*\\..*).*)",
+      "destination": "/index.html"
     }
   ]
 }
