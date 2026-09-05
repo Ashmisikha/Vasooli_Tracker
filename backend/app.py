@@ -274,16 +274,6 @@ def get_stocks():
     
     return jsonify({'data': stocks, 'results': stocks, 'total': len(stocks)})
 
-@app.route('/', methods=['GET', 'OPTIONS'])
-@app.route('/index.html', methods=['GET'])
-def root():
-    """Root endpoint for health check"""
-    return jsonify({
-        'status': 'running',
-        'message': 'Vasooli Tracker API is live!',
-        'version': '1.0.0'
-    })
-
 @app.route('/<path:path>', methods=['GET', 'POST', 'DELETE', 'OPTIONS', 'PUT'])
 def catch_all(path):
     """Catch-all router to handle any path format from Vercel serverless rewrites"""
@@ -304,7 +294,7 @@ def catch_all(path):
     if not clean_path.startswith('/'):
         clean_path = '/' + clean_path
 
-    if clean_path in ['/', '/health', '/index.html']:
+    if clean_path in ['/health']:
         return health_check()
     elif clean_path in ['/watchlist', '/watchlists', '/watchlist/1', '/watchlists/1']:
         if request.method == 'POST':
