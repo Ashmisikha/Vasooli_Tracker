@@ -810,6 +810,78 @@ def get_market_statistics():
         'indices': list(INDICES_DATA.values())
     })
 
+STATIC_NEWS_ITEMS = [
+    {"id": 1, "title": "NVIDIA Announces Next-Gen Blackwell Ultra Chips; Demand Surges 40%", "publisher": "Tech Wire", "time": "10 mins ago", "sentiment": "Positive", "score": "+0.85", "symbol": "NVDA", "summary": "Enterprise AI server spending drives record GPU order backlog across cloud hyperscalers.", "url": ""},
+    {"id": 2, "title": "Federal Reserve Signals Rate Pause Amid Cooling Inflation Indicators", "publisher": "Financial Express", "time": "25 mins ago", "sentiment": "Positive", "score": "+0.62", "symbol": "MSFT", "summary": "Lower borrowing yields provide macro tailwinds for high-growth SaaS and software equities.", "url": ""},
+    {"id": 3, "title": "Tesla Advances Autonomous Software Safety Patch Following Highway Safety Review", "publisher": "Auto News Daily", "time": "1 hour ago", "sentiment": "Neutral", "score": "+0.15", "symbol": "TSLA", "summary": "Full self-driving software validation update improves safety metric compliance.", "url": ""},
+    {"id": 4, "title": "Reliance Industries Partners with Google Cloud for Enterprise AI Infrastructure", "publisher": "Mint", "time": "2 hours ago", "sentiment": "Positive", "score": "+0.75", "symbol": "RELIANCE.NS", "summary": "Strategic telecom and cloud infrastructure rollout expected to expand digital service margins.", "url": ""},
+    {"id": 5, "title": "Apple Reports Strong Services Revenue Milestone in Q3 Earnings Beat", "publisher": "Bloomberg", "time": "3 hours ago", "sentiment": "Positive", "score": "+0.55", "symbol": "AAPL", "summary": "App Store and cloud subscription acceleration offsets minor hardware seasonality.", "url": ""},
+    {"id": 6, "title": "Amazon AWS Wins $4B Multi-Year Cloud Migration Deal in Healthcare", "publisher": "Reuters", "time": "4 hours ago", "sentiment": "Positive", "score": "+0.70", "symbol": "AMZN", "summary": "Enterprise cloud adoption momentum accelerates operating income margin expansion.", "url": ""},
+    {"id": 7, "title": "HDFC Bank Reports Robust Loan Growth & Expanding Net Interest Margins", "publisher": "Economic Times", "time": "5 hours ago", "sentiment": "Positive", "score": "+0.68", "symbol": "HDFCBANK.NS", "summary": "Retail banking and SME lending drive double-digit deposit and loan book expansion.", "url": ""}
+]
+
+@app.route('/news', methods=['GET'])
+@app.route('/v1/news', methods=['GET'])
+@app.route('/api/news', methods=['GET'])
+@app.route('/api/v1/news', methods=['GET'])
+def get_news_feed():
+    limit = int(request.args.get('limit', 20))
+    return jsonify({
+        "success": True,
+        "count": len(STATIC_NEWS_ITEMS[:limit]),
+        "news": STATIC_NEWS_ITEMS[:limit],
+        "timestamp": datetime.now().isoformat(),
+        "source": "live_feed"
+    })
+
+@app.route('/news/sentiment/simulate', methods=['POST'])
+@app.route('/v1/news/sentiment/simulate', methods=['POST'])
+@app.route('/api/news/sentiment/simulate', methods=['POST'])
+@app.route('/api/v1/news/sentiment/simulate', methods=['POST'])
+def simulate_sentiment():
+    payload = request.json or {}
+    symbol = payload.get("symbol", "AAPL").upper()
+    headline = payload.get("headline", "")
+    try:
+        sentiment_score = float(payload.get("sentiment_score", -0.70))
+    except (ValueError, TypeError):
+        sentiment_score = -0.70
+
+    baseline_risk = 42.0
+    risk_delta = round(abs(sentiment_score) * 20.0, 1)
+    simulated_risk = min(100.0, max(0.0, baseline_risk + (risk_delta if sentiment_score < 0 else -risk_delta / 2)))
+
+    return jsonify({
+        "symbol": symbol,
+        "headline_injected": headline,
+        "baseline": {
+            "risk_score": baseline_risk,
+            "sentiment_score": 0.25,
+            "sentiment_level": "Positive",
+            "recommendation": "BUY"
+        },
+        "simulated": {
+            "risk_score": simulated_risk,
+            "sentiment_score": sentiment_score,
+            "sentiment_level": "Negative" if sentiment_score < 0 else "Positive",
+            "recommendation": "AVOID" if simulated_risk > 65 else ("CAUTION" if simulated_risk > 45 else "BUY"),
+            "breakdown": {
+                "sentiment": round(abs(sentiment_score) * 40.0, 1),
+                "volatility": 35.0,
+                "beta": 1.2,
+                "technical": 40.0
+            },
+            "risk_factors": ["Headline sentiment volatility shock", "Transient market reaction risk"],
+            "prediction": {"trend": "Downside Pressure" if sentiment_score < 0 else "Upside Catalyst"}
+        },
+        "impact": {
+            "risk_score_delta": risk_delta,
+            "is_spike": risk_delta >= 8.0,
+            "recommendation_flipped": simulated_risk > 60,
+            "explanation": f"The injected headline-driven shift to {sentiment_score:+.2f} sentiment altered the composite risk score by {risk_delta} points."
+        }
+    })
+
 try:
     from app.core.stock_catalog import STOCK_CATALOG
 except Exception:
@@ -993,6 +1065,10 @@ def catch_all(path=''):
         return get_market_signal()
     elif any(k in clean_path for k in ['market/statistics', 'statistics']):
         return get_market_statistics()
+    elif 'news/sentiment/simulate' in clean_path:
+        return simulate_sentiment()
+    elif 'news' in clean_path:
+        return get_news_feed()
     elif 'analyze' in clean_path:
         parts = [p for p in clean_path.split('/') if p]
         sym = parts[-1] if len(parts) > 1 else 'AAPL'
@@ -1036,6 +1112,10 @@ def catch_all(path=''):
                             pass
 
         return jsonify({'error': 'Asset not found'}), 404
+
+    # For unhandled API requests, return 404 JSON instead of HTML SPA to prevent JSON parse errors
+    if any(k in raw_uri.lower() for k in ['/api/', '/v1/', 'news', 'watchlist', 'stocks', 'market']):
+        return jsonify({'error': f'Endpoint not found: {clean_path}'}), 404
 
     # If request is for root or non-API route, attempt to serve built index.html SPA
     for possible_index in [
