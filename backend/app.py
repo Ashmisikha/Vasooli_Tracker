@@ -296,24 +296,27 @@ def catch_all(path=''):
     if not clean_path.startswith('/'):
         clean_path = '/' + clean_path
 
-    if clean_path in ['/health']:
+    if clean_path in ['/health', '/api/health', '/v1/health']:
         return health_check()
-    elif clean_path in ['/watchlist', '/watchlists', '/watchlist/1', '/watchlists/1']:
+    elif 'watchlist' in clean_path:
         if request.method == 'POST':
             return add_to_watchlist()
         elif request.method == 'DELETE':
-            return remove_from_watchlist(request.json.get('symbol', 'AAPL') if request.json else 'AAPL')
+            parts = clean_path.split('/')
+            sym = parts[-1] if len(parts) > 1 else (request.json.get('symbol', 'AAPL') if request.json else 'AAPL')
+            return remove_from_watchlist(sym)
         return get_watchlist()
-    elif clean_path.startswith('/watchlist') or clean_path.startswith('/watchlists'):
+    elif clean_path.startswith('/stocks/') or clean_path.startswith('/stock/'):
         parts = clean_path.split('/')
-        if request.method == 'POST':
-            return add_to_watchlist()
-        elif request.method == 'DELETE':
-            return remove_from_watchlist(parts[-1])
-        return get_watchlist()
-    elif clean_path in ['/stocks']:
+        if 'search' in clean_path or 'recommendations' in clean_path or 'sectors' in clean_path:
+            return get_stocks()
+        symbol = parts[-1] if len(parts) > 1 else 'AAPL'
+        if symbol == 'chart':
+            symbol = parts[-2] if len(parts) > 2 else 'AAPL'
+        return analyze_stock(symbol)
+    elif clean_path in ['/stocks', '/stocks/']:
         return get_stocks()
-    elif 'market' in clean_path or 'analysis' in clean_path or 'signal' in clean_path or 'insights' in clean_path:
+    elif any(k in clean_path for k in ['market', 'analysis', 'signal', 'insights', 'risk', 'summary', 'overview', 'breadth']):
         return get_market_statistics()
     elif 'analyze' in clean_path:
         parts = clean_path.split('/')
