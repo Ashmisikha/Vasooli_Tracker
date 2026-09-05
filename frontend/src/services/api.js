@@ -12,7 +12,7 @@ export async function fetchWithFallback(endpoint, options = {}) {
   const headers = {
     ...(options.headers || {}),
   };
-  if (token) {
+  if (token && token !== 'undefined' && token !== 'null') {
     headers['Authorization'] = `Bearer ${token}`;
   }
 
@@ -20,8 +20,10 @@ export async function fetchWithFallback(endpoint, options = {}) {
     const directUrl = `${PRIMARY_API_BASE}${endpoint}`;
     let res = await fetch(directUrl, { ...options, headers });
     
-    if (res.status === 401 && token) {
+    // If server responds with 401 (Unauthorized), remove invalid token and retry without header
+    if (res.status === 401) {
       localStorage.removeItem('vasooli_token');
+      localStorage.removeItem('vasooli_mode');
       delete headers['Authorization'];
       res = await fetch(directUrl, { ...options, headers });
     }
@@ -29,7 +31,11 @@ export async function fetchWithFallback(endpoint, options = {}) {
     if (res.ok) return res;
     
     const errorData = await res.json().catch(() => ({}));
-    throw new Error(errorData.detail || `HTTP Error ${res.status}: ${res.statusText}`);
+    let msg = errorData.detail || errorData.error || errorData.message;
+    if (!msg || msg.toLowerCase().includes('not authenticated') || msg.toLowerCase().includes('unauthorized')) {
+      msg = `Failed to process request for ${endpoint}`;
+    }
+    throw new Error(msg);
   } catch (err) {
     console.warn(`[API Service]: Fetch issue for ${endpoint}`, err);
     throw err;
