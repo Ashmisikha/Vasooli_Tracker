@@ -320,8 +320,28 @@ def catch_all(path=''):
         symbol = parts[-1] if len(parts) > 1 else 'AAPL'
         return analyze_stock(symbol)
         
-    # If request is for root or non-API route, attempt to serve built index.html SPA
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    
+    # Handle static JS, CSS, and media assets with proper MIME types
+    raw_path = path.lstrip('/')
+    if raw_path.startswith('assets/') or any(raw_path.endswith(ext) for ext in ['.js', '.css', '.png', '.jpg', '.jpeg', '.svg', '.ico', '.woff', '.woff2', '.ttf']):
+        for base in [os.path.join(base_dir, 'dist'), os.path.join(base_dir, 'frontend', 'dist')]:
+            file_path = os.path.join(base, raw_path)
+            if os.path.exists(file_path):
+                import mimetypes
+                mime_type, _ = mimetypes.guess_type(file_path)
+                if raw_path.endswith('.js'):
+                    mime_type = 'application/javascript'
+                elif raw_path.endswith('.css'):
+                    mime_type = 'text/css'
+                try:
+                    with open(file_path, 'rb') as f:
+                        return f.read(), 200, {'Content-Type': mime_type or 'application/octet-stream'}
+                except Exception:
+                    pass
+        return jsonify({'error': 'Asset not found'}), 404
+
+    # If request is for root or non-API route, attempt to serve built index.html SPA
     for possible_index in [
         os.path.join(base_dir, 'dist', 'index.html'),
         os.path.join(base_dir, 'frontend', 'dist', 'index.html')
