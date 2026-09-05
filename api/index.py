@@ -11,7 +11,12 @@ if backend_dir not in sys.path:
     sys.path.insert(0, backend_dir)
 
 try:
-    from app import app as application
+    import importlib.util
+    app_py_path = os.path.join(backend_dir, 'app.py')
+    spec = importlib.util.spec_from_file_location('backend_app_module', app_py_path)
+    backend_app_module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(backend_app_module)
+    application = backend_app_module.app
 except Exception as e:
     try:
         from flask import Flask, jsonify, request
