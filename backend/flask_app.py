@@ -282,7 +282,7 @@ def catch_all(path=''):
     if request.method == 'OPTIONS':
         return jsonify({'status': 'ok'}), 200
         
-    raw_uri = request.headers.get('X-Forwarded-Uri') or request.environ.get('REQUEST_URI') or request.path or path
+    raw_uri = request.args.get('path') or request.headers.get('X-Forwarded-Uri') or request.environ.get('REQUEST_URI') or request.path or path
     clean_path = '/' + raw_uri.split('?')[0].strip('/')
     clean_path = clean_path.replace('/index.py', '').replace('index.py', '')
     if not clean_path.startswith('/'):
