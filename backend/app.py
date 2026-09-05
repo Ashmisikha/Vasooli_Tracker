@@ -274,10 +274,10 @@ def get_stocks():
     
     return jsonify({'data': stocks, 'results': stocks, 'total': len(stocks)})
 
-@app.route('/api/<path:path>', methods=['GET', 'POST', 'DELETE', 'OPTIONS', 'PUT'])
-@app.route('/api/v1/<path:path>', methods=['GET', 'POST', 'DELETE', 'OPTIONS', 'PUT'])
-@app.route('/v1/<path:path>', methods=['GET', 'POST', 'DELETE', 'OPTIONS', 'PUT'])
-def catch_all(path):
+@app.route('/', methods=['GET', 'POST', 'DELETE', 'OPTIONS', 'PUT'])
+@app.route('/index.html', methods=['GET'])
+@app.route('/<path:path>', methods=['GET', 'POST', 'DELETE', 'OPTIONS', 'PUT'])
+def catch_all(path=''):
     """Catch-all router to handle any path format from Vercel serverless rewrites"""
     if request.method == 'OPTIONS':
         return jsonify({'status': 'ok'}), 200
@@ -320,6 +320,19 @@ def catch_all(path):
         symbol = parts[-1] if len(parts) > 1 else 'AAPL'
         return analyze_stock(symbol)
         
+    # If request is for root or non-API route, attempt to serve built index.html SPA
+    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    for possible_index in [
+        os.path.join(base_dir, 'dist', 'index.html'),
+        os.path.join(base_dir, 'frontend', 'dist', 'index.html')
+    ]:
+        if os.path.exists(possible_index):
+            try:
+                with open(possible_index, 'r', encoding='utf-8') as f:
+                    return f.read(), 200, {'Content-Type': 'text/html'}
+            except Exception:
+                pass
+
     return health_check()
 
 if __name__ == '__main__':
