@@ -742,7 +742,8 @@ def get_market_index_chart_route():
 def get_market_indices_route():
     raw_path = request.path or ''
     req_path_param = request.args.get('path', '')
-    if 'chart' in raw_path or 'index' in request.args or 'chart' in req_path_param:
+    raw_url = request.url or ''
+    if 'chart' in raw_path or 'chart' in req_path_param or 'chart' in raw_url:
         return get_market_index_chart_route()
     market = request.args.get('market', 'india')
     indices_list = fetch_live_indices_summary()
@@ -945,7 +946,7 @@ def catch_all(path=''):
         return get_market_sectors_analysis()
     elif 'market-analysis/insights' in clean_path:
         return get_market_insights()
-    elif 'market/indices/chart' in clean_path:
+    elif ('indices' in clean_path and 'chart' in clean_path) or ('index' in clean_path and 'chart' in clean_path):
         return get_market_index_chart_route()
     elif 'market/indices' in clean_path:
         return get_market_indices_route()
