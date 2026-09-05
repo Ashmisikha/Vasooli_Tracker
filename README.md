@@ -102,7 +102,8 @@ Frontend runs on: http://localhost:3000
 Go to: http://localhost:3000
 
 Click "Try Demo" to start using Vasooli Tracker.
-
+---
+### Live Demo: https://vasooli-tracker-inky.vercel.app/dashboard 
 ---
 ### Why This Is Different
 -Attention Score — Prioritizes, not just tracks
@@ -112,11 +113,11 @@ Click "Try Demo" to start using Vasooli Tracker.
 -No AI Overclaim — Honest about using TextBlob NLP
 
 ### Team
-Ashmisikha Piri 
+Ashmisikha Piri- RA2311056010222
 
 GitHub: https://github.com/Ashmisikha
 LinkedIn: http://www.linkedin.com/in/ashmisikha-piri
 
-### Links
+### Lin[ks
 GitHub: https://github.com/Ashmisikha/Vasooli_Tracker
-Live Demo: https://vasooli-tracker.vercel.app
+Live Demo: https://vasooli-tracker-inky.vercel.app/dashboard
