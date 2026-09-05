@@ -1,14 +1,42 @@
 {
+  "version": 2,
   "buildCommand": "cd frontend && npm install && npm run build",
   "outputDirectory": "frontend/dist",
-  "rewrites": [
+  "builds": [
     {
-      "source": "/api/(.*)",
-      "destination": "/api/index.py"
+      "src": "frontend/dist/**",
+      "use": "@vercel/static-build",
+      "config": {
+        "distDir": "frontend/dist"
+      }
     },
     {
-      "source": "/((?!api/).*)",
-      "destination": "/index.html"
+      "src": "backend/vercel_app.py",
+      "use": "@vercel/python"
+    },
+    {
+      "src": "api/index.py",
+      "use": "@vercel/python"
     }
-  ]
+  ],
+  "routes": [
+    {
+      "src": "/api/(.*)",
+      "dest": "backend/vercel_app.py"
+    },
+    {
+      "src": "/((?!api/).*)",
+      "dest": "frontend/dist/index.html"
+    }
+  ],
+  "functions": {
+    "backend/vercel_app.py": {
+      "maxDuration": 30,
+      "memory": 1024
+    },
+    "api/index.py": {
+      "maxDuration": 30,
+      "memory": 1024
+    }
+  }
 }
