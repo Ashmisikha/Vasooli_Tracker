@@ -1,39 +1,14 @@
 import sys
 import os
 
-# Ensure root and backend directory are in Python path
 root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 backend_dir = os.path.join(root_dir, 'backend')
 
-if root_dir not in sys.path:
-    sys.path.insert(0, root_dir)
 if backend_dir not in sys.path:
     sys.path.insert(0, backend_dir)
+if root_dir not in sys.path:
+    sys.path.insert(0, root_dir)
 
-try:
-    import importlib.util
-    app_py_path = os.path.join(backend_dir, 'app.py')
-    spec = importlib.util.spec_from_file_location('backend_app_module', app_py_path)
-    backend_app_module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(backend_app_module)
-    application = backend_app_module.app
-except Exception as e:
-    try:
-        from flask import Flask, jsonify, request
-        from flask_cors import CORS
-        application = Flask(__name__)
-        CORS(application)
-
-        @application.route('/api/health', methods=['GET'])
-        @application.route('/api/v1/health', methods=['GET'])
-        def health():
-            return jsonify({'status': 'healthy', 'message': 'Vasooli API live'})
-
-        @application.route('/api/watchlist', methods=['GET', 'POST', 'DELETE'])
-        @application.route('/api/v1/watchlists', methods=['GET', 'POST', 'DELETE'])
-        def watchlist():
-            return jsonify({'success': True, 'data': [], 'watchlist': [], 'count': 0})
-    except Exception:
-        application = None
+from flask_app import app as application
 
 app = application
