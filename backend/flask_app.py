@@ -118,11 +118,30 @@ def health_check():
     })
 
 DEFAULT_WATCHLIST_SYMBOLS = ['RELIANCE.NS', 'TCS.NS', 'INFY.NS', 'HDFCBANK.NS', 'AAPL', 'NVDA', 'TSLA']
+WATCHLIST_FILE = '/tmp/vasooli_watchlist.json'
 
 def get_current_watchlist_symbols():
-    if not hasattr(app, 'watchlist_items') or not app.watchlist_items:
-        app.watchlist_items = list(DEFAULT_WATCHLIST_SYMBOLS)
-    return app.watchlist_items
+    """Read watchlist from /tmp file (persists within Vercel instance lifecycle)."""
+    try:
+        if os.path.exists(WATCHLIST_FILE):
+            with open(WATCHLIST_FILE, 'r') as f:
+                data = json.load(f)
+                if isinstance(data, list) and len(data) > 0:
+                    return data
+    except Exception:
+        pass
+    # Initialise from defaults and write to file
+    syms = list(DEFAULT_WATCHLIST_SYMBOLS)
+    _save_watchlist_symbols(syms)
+    return syms
+
+def _save_watchlist_symbols(symbols):
+    """Write watchlist to /tmp file."""
+    try:
+        with open(WATCHLIST_FILE, 'w') as f:
+            json.dump(symbols, f)
+    except Exception:
+        pass
 
 @app.route('/watchlist', methods=['GET'])
 @app.route('/watchlists', methods=['GET'])
@@ -239,6 +258,7 @@ def add_to_watchlist(wl_id=1):
     symbols = get_current_watchlist_symbols()
     if symbol not in symbols:
         symbols.append(symbol)
+        _save_watchlist_symbols(symbols)
     
     cache.pop('watchlist', None)
     cache_time.pop('watchlist', None)
@@ -263,6 +283,7 @@ def remove_from_watchlist(symbol, wl_id=1):
     symbols = get_current_watchlist_symbols()
     if sym in symbols:
         symbols.remove(sym)
+        _save_watchlist_symbols(symbols)
     
     cache.pop('watchlist', None)
     cache_time.pop('watchlist', None)
@@ -1120,7 +1141,7 @@ def catch_all(path=''):
         return get_market_sectors_analysis()
     elif 'market-analysis/insights' in clean_path:
         return get_market_insights()
-    elif ('indices' in clean_path and 'chart' in clean_path) or ('index' in clean_path and 'chart' in clean_path):
+    elif ('indices/chart' in clean_path) or ('index/chart' in clean_path) or ('indices' in clean_path and 'chart' in clean_path):
         return get_market_index_chart_route()
     elif 'market/indices' in clean_path:
         return get_market_indices_route()
