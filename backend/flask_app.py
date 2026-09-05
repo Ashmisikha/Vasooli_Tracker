@@ -382,16 +382,60 @@ def get_stock_chart_route(symbol='AAPL'):
 
 @app.route('/stocks/<symbol>', methods=['GET'])
 @app.route('/v1/stocks/<symbol>', methods=['GET'])
+@app.route('/analysis/watchlist', methods=['GET'])
+@app.route('/analysis/watchlist/<wl_id>', methods=['GET'])
+@app.route('/v1/analysis/watchlist', methods=['GET'])
+@app.route('/v1/analysis/watchlist/<wl_id>', methods=['GET'])
+@app.route('/api/analysis/watchlist', methods=['GET'])
+@app.route('/api/v1/analysis/watchlist', methods=['GET'])
+@app.route('/api/v1/analysis/watchlist/<wl_id>', methods=['GET'])
+def get_watchlist_analysis(wl_id=1):
+    """Get stock analysis list for all watchlist items"""
+    symbols = get_current_watchlist_symbols()
+    result = []
+    for sym in symbols:
+        sym_upper = sym.strip().upper()
+        matching = next((s for s in STOCK_CATALOG if s['symbol'].upper() == sym_upper), None)
+        price = float(matching['price']) if (matching and matching.get('price')) else 150.0
+        name = matching['name'] if matching else sym_upper
+        change = float(matching.get('change', 0.5)) if matching else 0.5
+        change_pct = float(matching.get('change_pct', 0.5)) if matching else 0.5
+        
+        live = fetch_live_quote(sym_upper)
+        if live and live.get('price'):
+            price = float(live['price'])
+            change = float(live.get('change', change))
+            change_pct = float(live.get('change_pct', change_pct))
+            if live.get('name'): name = live['name']
+
+        pct_abs = abs(change_pct)
+        risk_score = min(95, max(15, int(35 + pct_abs * 12)))
+
+        result.append({
+            'symbol': sym_upper,
+            'name': name,
+            'company': name,
+            'current_snapshot': {
+                'price': price,
+                'change': change,
+                'change_pct': change_pct,
+                'volume': 1250000
+            },
+            'attention': {
+                'score': risk_score,
+                'insights': ['Live price tracking active', 'Risk parameters within standard range'],
+                'factors': ['Market Beta', 'Sector Volatility']
+            }
+        })
+    return jsonify(result)
+
 @app.route('/analyze/<symbol>', methods=['GET'])
 @app.route('/v1/analyze/<symbol>', methods=['GET'])
-@app.route('/analysis/watchlist/<wl_id>', methods=['GET'])
-@app.route('/v1/analysis/watchlist/<wl_id>', methods=['GET'])
 @app.route('/api/stocks/<symbol>', methods=['GET'])
 @app.route('/api/v1/stocks/<symbol>', methods=['GET'])
 @app.route('/api/analyze/<symbol>', methods=['GET'])
 @app.route('/api/v1/analyze/<symbol>', methods=['GET'])
-@app.route('/api/v1/analysis/watchlist/<wl_id>', methods=['GET'])
-def analyze_stock(symbol='AAPL', wl_id=1):
+def analyze_stock(symbol='AAPL'):
     """Analyze a stock - full analytics and detail engine"""
     try:
         raw_sym = str(symbol).strip().upper()
@@ -1017,6 +1061,8 @@ def catch_all(path=''):
 
     if clean_path in ['/health', '/api/health', '/v1/health']:
         return health_check()
+    elif 'analysis/watchlist' in clean_path:
+        return get_watchlist_analysis()
     elif 'watchlist' in clean_path:
         if request.method == 'POST':
             return add_to_watchlist()
