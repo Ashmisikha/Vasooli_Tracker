@@ -9,20 +9,99 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from flask import Flask, jsonify, request
 from flask_cors import CORS
+import requests
 
 app = Flask(__name__)
 CORS(app)
+
+FINNHUB_TOKEN = os.environ.get('FINNHUB_API_KEY', 'dadi4r9r01qtj63ph1p0dadi4r9r01qtj63ph1pg')
 
 # Simple cache to reduce API calls
 cache = {}
 cache_time = {}
 
-def is_cache_valid(key):
+def is_cache_valid(key, ttl=120):
     """Check if cache is still valid"""
     if key in cache_time:
         age = (datetime.now() - cache_time[key]).total_seconds()
-        return age < 300  # 5 minutes
+        return age < ttl
     return False
+
+def fetch_live_quote(symbol):
+    """
+    Fetches real live stock data using direct Yahoo Finance & Finnhub APIs.
+    Supports both Indian (.NS) and US equities.
+    """
+    sym = str(symbol).strip().upper()
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    }
+    
+    # 1. Try Yahoo Finance chart API
+    try:
+        url = f"https://query1.finance.yahoo.com/v8/finance/chart/{sym}?interval=1d&range=2d"
+        resp = requests.get(url, headers=headers, timeout=3.5)
+        if resp.status_code == 200:
+            res = resp.json().get('chart', {}).get('result')
+            if res and len(res) > 0:
+                meta = res[0].get('meta', {})
+                price = meta.get('regularMarketPrice') or meta.get('chartPreviousClose')
+                prev_close = meta.get('chartPreviousClose', price)
+                if price is not None:
+                    p = round(float(price), 2)
+                    pc = round(float(prev_close), 2) if prev_close else p
+                    change = round(p - pc, 2)
+                    change_pct = round(((p - pc) / pc) * 100, 2) if pc > 0 else 0.0
+                    name = meta.get('longName') or meta.get('shortName') or sym
+                    return {
+                        'symbol': sym,
+                        'name': name,
+                        'company': name,
+                        'price': p,
+                        'change': change,
+                        'change_pct': change_pct,
+                        'prev_close': pc,
+                        'high': round(float(meta.get('regularMarketDayHigh', p * 1.01)), 2),
+                        'low': round(float(meta.get('regularMarketDayLow', p * 0.99)), 2),
+                        'volume': meta.get('regularMarketVolume', 1250000),
+                        'currency': meta.get('currency', 'INR' if sym.endswith('.NS') else 'USD'),
+                        'risk_score': 45 if change_pct >= 0 else 65,
+                        'sentiment': 'Bullish' if change_pct > 0.5 else ('Bearish' if change_pct < -0.5 else 'Neutral')
+                    }
+    except Exception:
+        pass
+
+    # 2. Try Finnhub API for US equities
+    if FINNHUB_TOKEN and not sym.endswith('.NS') and not sym.endswith('.BO'):
+        try:
+            url = f"https://finnhub.io/api/v1/quote?symbol={sym}&token={FINNHUB_TOKEN}"
+            resp = requests.get(url, timeout=3.0)
+            if resp.status_code == 200:
+                data = resp.json()
+                if data and 'c' in data and data['c'] > 0:
+                    c = float(data['c'])
+                    pc = float(data.get('pc', c))
+                    change = round(c - pc, 2)
+                    change_pct = round((change / pc) * 100, 2) if pc > 0 else 0.0
+                    return {
+                        'symbol': sym,
+                        'name': sym,
+                        'company': sym,
+                        'price': round(c, 2),
+                        'change': change,
+                        'change_pct': change_pct,
+                        'prev_close': round(pc, 2),
+                        'high': round(float(data.get('h', c * 1.01)), 2),
+                        'low': round(float(data.get('l', c * 0.99)), 2),
+                        'volume': 1500000,
+                        'currency': 'USD',
+                        'risk_score': 45 if change_pct >= 0 else 65,
+                        'sentiment': 'Bullish' if change_pct > 0.5 else ('Bearish' if change_pct < -0.5 else 'Neutral')
+                    }
+        except Exception:
+            pass
+
+    return None
 
 # ============= API ENDPOINTS =============
 
