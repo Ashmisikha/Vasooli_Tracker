@@ -13,6 +13,6 @@ if backend_dir not in sys.path:
 from app.main import app
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))
+    port = int(os.environ.get("PORT", 5001))
     print(f"Starting Vasooli Tracker Backend Server on port {port}...")
     uvicorn.run("app.main:app", host="0.0.0.0", port=port, reload=False)

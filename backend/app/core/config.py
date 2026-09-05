@@ -47,6 +47,7 @@ class Settings(BaseSettings):
     
     FINNHUB_API_KEY: Optional[str] = None
 
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    if SettingsConfigDict is not None:
+        model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 settings = Settings()
