@@ -291,12 +291,18 @@ def catch_all(path):
         return jsonify({'status': 'ok'}), 200
         
     clean_path = '/' + path.strip('/')
+    clean_path = clean_path.replace('/index.py', '').replace('index.py', '')
+    if not clean_path.startswith('/'):
+        clean_path = '/' + clean_path
+    clean_path = clean_path.replace('//', '/')
     
     # Strip leading /api and /v1 prefixes
-    for prefix in ['/api/v1/', '/api/', '/v1/']:
+    for prefix in ['/api/v1', '/api', '/v1']:
         if clean_path.startswith(prefix):
-            clean_path = '/' + clean_path[len(prefix):]
+            clean_path = clean_path[len(prefix):]
             break
+    if not clean_path.startswith('/'):
+        clean_path = '/' + clean_path
 
     if clean_path in ['/', '/health', '/index.html']:
         return health_check()
@@ -324,9 +330,8 @@ def catch_all(path):
         
     return health_check()
 
-# This is the entry point for Vercel
-app = app
-
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    port = int(os.environ.get('PORT', 8000))
+    app.run(host='0.0.0.0', port=port, debug=True)
+
 
