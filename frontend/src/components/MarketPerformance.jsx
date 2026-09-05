@@ -21,12 +21,83 @@ const CURRENCY = {
   'S&P 500': '$', 'NASDAQ': '$', 'DOW JONES': '$',
 };
 
+const INDEX_BASE_PRICES = {
+  'NIFTY 50': 24852.15,
+  'SENSEX': 81420.30,
+  'BANK NIFTY': 51880.80,
+  'NIFTY IT': 42350.00,
+  'S&P 500': 5660.40,
+  'NASDAQ': 17850.10,
+  'DOW JONES': 41390.00,
+};
+
+function generateFallbackChart(indexName, period, currentPrice) {
+  const basePrice = currentPrice && typeof currentPrice === 'number' && !isNaN(currentPrice) && currentPrice > 0
+    ? currentPrice
+    : (INDEX_BASE_PRICES[indexName] || 24850);
+
+  const periodDays = { '1D': 1, '1W': 7, '1M': 30, '3M': 90, '1Y': 365, 'All': 1825 };
+  const days = periodDays[period] || 30;
+  const nPoints = Math.max(15, Math.min(days <= 7 ? 24 : (days <= 30 ? 30 : 45), 60));
+
+  const points = [];
+  const now = new Date();
+
+  let seed = 0;
+  for (let i = 0; i < indexName.length; i++) seed += indexName.charCodeAt(i);
+  for (let i = 0; i < period.length; i++) seed += period.charCodeAt(i);
+
+  const pseudoRandom = () => {
+    seed = (seed * 9301 + 49297) % 233280;
+    return seed / 233280;
+  };
+
+  let price = basePrice * (1.0 - (Math.min(days, 60) * 0.001));
+
+  for (let i = nPoints; i >= 1; i--) {
+    let dateStr = '';
+    const d = new Date(now);
+    if (days === 1) {
+      d.setMinutes(d.getMinutes() - i * 15);
+      dateStr = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    } else if (days <= 14) {
+      d.setDate(d.getDate() - i);
+      dateStr = d.toLocaleDateString([], { weekday: 'short', day: 'numeric' });
+    } else if (days <= 90) {
+      d.setDate(d.getDate() - i * 2);
+      dateStr = d.toLocaleDateString([], { day: 'numeric', month: 'short' });
+    } else {
+      d.setDate(d.getDate() - i * 7);
+      dateStr = d.toLocaleDateString([], { month: 'short', year: '2-digit' });
+    }
+
+    const changePct = (pseudoRandom() - 0.48) * 0.012;
+    price = price * (1.0 + changePct);
+    points.push({
+      date: dateStr,
+      price: Math.round(price * 100) / 100
+    });
+  }
+
+  points.push({
+    date: days === 1 ? now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Today',
+    price: Math.round(basePrice * 100) / 100
+  });
+
+  return points;
+}
+
 async function fetchIndexChart(index, period) {
-  const res = await fetchWithFallback(
-    `/market/indices/chart?index=${encodeURIComponent(index)}&period=${period}`
-  );
-  if (!res.ok) throw new Error('Chart fetch failed');
-  return res.json();
+  try {
+    const res = await fetchWithFallback(
+      `/market/indices/chart?index=${encodeURIComponent(index)}&period=${period}`
+    );
+    if (!res.ok) return null;
+    return await res.json();
+  } catch (e) {
+    console.warn('[MarketPerformance] chart API network issue:', e);
+    return null;
+  }
 }
 
 const CustomTooltip = ({ active, payload, label, currency }) => {
@@ -93,18 +164,28 @@ const MarketPerformance = ({ selectedMarket = 'india' }) => {
   // Fetch chart data
   const loadChart = useCallback(async (index, period) => {
     setChartLoading(true);
+    let success = false;
     try {
       const data = await fetchIndexChart(index, period);
-      if (data && data.chart && data.chart.length > 0) {
+      if (data && data.chart && Array.isArray(data.chart) && data.chart.length > 0) {
         setChartData(data.chart);
         setDataSource(data.source || '');
+        success = true;
       }
     } catch (e) {
-      console.warn('[MarketPerformance] chart fetch error:', e);
+      console.warn('[MarketPerformance] chart load error:', e);
     } finally {
       setChartLoading(false);
     }
-  }, []);
+
+    if (!success) {
+      const curIdxObj = indicesMap[index];
+      const priceVal = curIdxObj ? (typeof curIdxObj.price === 'number' ? curIdxObj.price : parseFloat(String(curIdxObj.price).replace(/,/g, ''))) : null;
+      const fallbackPoints = generateFallbackChart(index, period, priceVal);
+      setChartData(fallbackPoints);
+      setDataSource('fallback');
+    }
+  }, [indicesMap]);
 
   // Periodic refresh
   useEffect(() => {

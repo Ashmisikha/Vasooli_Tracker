@@ -22,10 +22,29 @@ import {
   removeStockFromWatchlist 
 } from './services/api';
 
+const DEFAULT_WATCHLIST_ITEMS = [
+  { symbol: 'RELIANCE.NS', name: 'Reliance Industries', company: 'Reliance Industries', price: 2450.0, change: 0.8, change_pct: 0.8, risk_score: 35, sector: 'Energy' },
+  { symbol: 'TCS.NS', name: 'Tata Consultancy Services', company: 'Tata Consultancy Services', price: 3520.0, change: -0.4, change_pct: -0.4, risk_score: 42, sector: 'Technology' },
+  { symbol: 'INFY.NS', name: 'Infosys Limited', company: 'Infosys Limited', price: 1480.0, change: 1.2, change_pct: 1.2, risk_score: 40, sector: 'Technology' },
+  { symbol: 'HDFCBANK.NS', name: 'HDFC Bank', company: 'HDFC Bank', price: 712.10, change: 5.2, change_pct: 0.74, risk_score: 38, sector: 'Financial' },
+  { symbol: 'AAPL', name: 'Apple Inc.', company: 'Apple Inc.', price: 185.5, change: 0.5, change_pct: 0.5, risk_score: 30, sector: 'Technology' },
+  { symbol: 'NVDA', name: 'NVIDIA Corp', company: 'NVIDIA Corp', price: 460.2, change: 2.4, change_pct: 2.4, risk_score: 65, sector: 'Technology' },
+  { symbol: 'TSLA', name: 'Tesla Inc.', company: 'Tesla Inc.', price: 248.5, change: -1.1, change_pct: -1.1, risk_score: 55, sector: 'EV/Auto' }
+];
+
 function AppLayout() {
   const navigate = useNavigate();
   const location = useLocation();
-  const [watchlist, setWatchlist] = useState([]);
+  const [watchlist, setWatchlist] = useState(() => {
+    try {
+      const stored = localStorage.getItem('vasooli_watchlist_state');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {}
+    return DEFAULT_WATCHLIST_ITEMS;
+  });
   const [portfolioSummary, setPortfolioSummary] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshingAll, setIsRefreshingAll] = useState(false);
@@ -58,7 +77,11 @@ function AppLayout() {
         fetchWatchlist(),
         fetchPortfolioSummary()
       ]);
-      setWatchlist(wlData.watchlist || wlData.data || []);
+      const fetchedWl = wlData.watchlist || wlData.data || [];
+      if (Array.isArray(fetchedWl) && fetchedWl.length > 0) {
+        setWatchlist(fetchedWl);
+        try { localStorage.setItem('vasooli_watchlist_state', JSON.stringify(fetchedWl)); } catch (e) {}
+      }
       setPortfolioSummary(sumData);
     } catch (err) {
       console.error('Failed to load Vasooli Tracker data:', err);
@@ -84,23 +107,52 @@ function AppLayout() {
   };
 
   const handleAddStock = async (symbol) => {
+    const cleanSym = symbol.trim().toUpperCase();
+    
+    // Optimistically update React state immediately
+    setWatchlist((prev) => {
+      const exists = prev.some((s) => s.symbol.toUpperCase() === cleanSym);
+      if (exists) return prev;
+      const newStock = {
+        symbol: cleanSym,
+        name: cleanSym,
+        company: cleanSym,
+        price: 150.0,
+        change: 0.5,
+        change_pct: 0.5,
+        risk_score: 42,
+        sector: 'Equities'
+      };
+      const updated = [newStock, ...prev];
+      try { localStorage.setItem('vasooli_watchlist_state', JSON.stringify(updated)); } catch (e) {}
+      return updated;
+    });
+
     try {
-      await addStockToWatchlist(symbol);
-      showNotification(`Added ${symbol} to Vasooli Tracker!`, 'success');
+      showNotification(`Added ${cleanSym} to Vasooli Tracker!`, 'success');
       setIsAddModalOpen(false);
+      await addStockToWatchlist(cleanSym);
       await loadData(true);
     } catch (err) {
-      showNotification(err.message || `Failed to add ${symbol}`, 'error');
+      console.warn('Background sync warning for add stock:', err);
     }
   };
 
   const handleRemoveStock = async (symbol) => {
+    const cleanSym = symbol.trim().toUpperCase();
+    
+    setWatchlist((prev) => {
+      const updated = prev.filter((s) => s.symbol.toUpperCase() !== cleanSym);
+      try { localStorage.setItem('vasooli_watchlist_state', JSON.stringify(updated)); } catch (e) {}
+      return updated;
+    });
+
     try {
-      await removeStockFromWatchlist(symbol);
-      showNotification(`Removed ${symbol} from watchlist`, 'success');
+      showNotification(`Removed ${cleanSym} from watchlist`, 'success');
+      await removeStockFromWatchlist(cleanSym);
       await loadData(true);
     } catch (err) {
-      showNotification(err.message || `Failed to remove ${symbol}`, 'error');
+      console.warn('Background sync warning for remove stock:', err);
     }
   };
 

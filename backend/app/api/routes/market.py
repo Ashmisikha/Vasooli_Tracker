@@ -206,12 +206,17 @@ PERIOD_CONFIG = {
 
 INDEX_SYMBOL_MAP = {
     "NIFTY 50":   "^NSEI",
+    "NIFTY50":    "^NSEI",
     "SENSEX":     "^BSESN",
     "BANK NIFTY": "^NSEBANK",
+    "NIFTYBANK":  "^NSEBANK",
     "NIFTY IT":   "^CNXIT",
+    "NIFTYIT":    "^CNXIT",
     "S&P 500":    "^GSPC",
+    "SP500":      "^GSPC",
     "NASDAQ":     "^IXIC",
     "DOW JONES":  "^DJI",
+    "DOW":        "^DJI",
 }
 
 @router.get("/indices/chart")
@@ -219,62 +224,55 @@ async def get_index_chart(
     index: str = Query("NIFTY 50"),
     period: str = Query("1M")
 ):
+    norm_index = (index or "NIFTY 50").strip().upper()
+    sym = INDEX_SYMBOL_MAP.get(norm_index, "^NSEI")
     cfg = PERIOD_CONFIG.get(period.upper(), PERIOD_CONFIG["1M"])
-    sym = INDEX_SYMBOL_MAP.get(index, "^NSEI")
-    end_ts = int(time.time())
-    start_ts = end_ts - cfg["days"] * 24 * 3600
 
-    data = await finnhub_get("/stock/candle", {
-        "symbol": sym,
-        "resolution": cfg["resolution"],
-        "from": start_ts,
-        "to": end_ts
-    })
+    # 1. Try Yahoo Finance history
+    try:
+        from app.services.yfinance_service import get_yf_history
+        yf_data = await get_yf_history(sym, period)
+        if yf_data and len(yf_data) > 0:
+            chart = []
+            for c in yf_data:
+                chart.append({
+                    "date": c.get("date", ""),
+                    "price": c.get("price", c.get("close", 0)),
+                    "open": c.get("open", 0),
+                    "high": c.get("high", 0),
+                    "low": c.get("low", 0),
+                    "volume": c.get("volume", 0),
+                })
+            if chart:
+                return {
+                    "success": True,
+                    "symbol": sym,
+                    "index": index,
+                    "period": period,
+                    "chart": chart,
+                    "source": "yahoo_live",
+                    "count": len(chart)
+                }
+    except Exception as e:
+        print(f"[get_index_chart yfinance warning]: {e}")
 
-    if data and data.get("s") == "ok" and data.get("c"):
-        ts_list = data.get("t", [])
-        c_list  = data.get("c", [])
-        h_list  = data.get("h", [])
-        l_list  = data.get("l", [])
-        o_list  = data.get("o", [])
-        v_list  = data.get("v", [])
-        chart = []
-        for i in range(len(c_list)):
-            dt = datetime.fromtimestamp(ts_list[i]) if ts_list else datetime.now()
-            if cfg["resolution"] in ("5", "30"):
-                label = dt.strftime("%H:%M")
-            elif cfg["resolution"] == "W":
-                label = dt.strftime("%d %b")
-            elif cfg["resolution"] == "M":
-                label = dt.strftime("%b %Y")
-            else:
-                label = dt.strftime("%Y-%m-%d")
-            chart.append({
-                "date":  label,
-                "price": round(c_list[i], 2),
-                "open":  round(o_list[i], 2) if o_list else round(c_list[i], 2),
-                "high":  round(h_list[i], 2) if h_list else round(c_list[i], 2),
-                "low":   round(l_list[i], 2) if l_list else round(c_list[i], 2),
-                "volume": int(v_list[i]) if v_list else 0,
-            })
-        return {"success": True, "symbol": sym, "index": index, "period": period,
-                "chart": chart, "source": "finnhub_live", "count": len(chart)}
-
+    # 2. Fallback synthetic generator
     BASE = {
-        "NIFTY 50": 24850, "SENSEX": 81420, "BANK NIFTY": 51880, "NIFTY IT": 42350,
-        "S&P 500": 5660, "NASDAQ": 17850, "DOW JONES": 41390
-    }.get(index, 24850)
-    n_points = cfg["days"] if cfg["resolution"] == "D" else (cfg["days"] * 2 if cfg["resolution"] in ("5","30") else cfg["days"] // 7)
-    n_points = max(20, min(n_points, 200))
+        "NIFTY 50": 24852.15, "SENSEX": 81420.30, "BANK NIFTY": 51880.80, "NIFTY IT": 42350.00,
+        "S&P 500": 5660.40, "NASDAQ": 17850.10, "DOW JONES": 41390.00
+    }.get(norm_index, 24852.15)
+
+    n_points = cfg["days"] if cfg["resolution"] == "D" else (cfg["days"] * 2 if cfg["resolution"] in ("5","30") else max(15, cfg["days"] // 7))
+    n_points = max(20, min(n_points, 120))
     chart = []
-    price = float(BASE)
+    price = float(BASE) * (1.0 - (min(cfg["days"], 60) * 0.001))
     now = datetime.now()
     import random
-    rng = random.Random(hash(index + period))
+    rng = random.Random(hash(norm_index + period.upper()))
     for i in range(n_points, 0, -1):
-        dt = now - timedelta(days=i) if cfg["resolution"] in ("D","W","M") else now - timedelta(minutes=i * int(cfg["resolution"]))
-        price *= (1 + rng.gauss(0.0003, 0.008))
-        price = max(BASE * 0.8, min(BASE * 1.2, price))
+        dt = now - timedelta(days=i) if cfg["resolution"] in ("D","W","M") else now - timedelta(minutes=i * 15)
+        price *= (1 + rng.gauss(0.0003, 0.006))
+        price = max(BASE * 0.85, min(BASE * 1.15, price))
         if cfg["resolution"] in ("5", "30"):
             label = dt.strftime("%H:%M")
         elif cfg["resolution"] == "W":
@@ -282,10 +280,23 @@ async def get_index_chart(
         elif cfg["resolution"] == "M":
             label = dt.strftime("%b %Y")
         else:
-            label = dt.strftime("%Y-%m-%d")
+            label = dt.strftime("%d %b")
         chart.append({"date": label, "price": round(price, 2)})
-    return {"success": True, "symbol": sym, "index": index, "period": period,
-            "chart": chart, "source": "synthetic_fallback", "count": len(chart)}
+    
+    chart.append({
+        "date": "Today" if cfg["resolution"] not in ("5", "30") else now.strftime("%H:%M"),
+        "price": BASE
+    })
+
+    return {
+        "success": True,
+        "symbol": sym,
+        "index": index,
+        "period": period,
+        "chart": chart,
+        "source": "synthetic_fallback",
+        "count": len(chart)
+    }
 
 @router.get("/statistics")
 async def get_market_statistics(market: Optional[str] = Query(None)):
