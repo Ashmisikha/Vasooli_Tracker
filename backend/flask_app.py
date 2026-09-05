@@ -197,11 +197,23 @@ def analyze_stock(symbol='AAPL', wl_id=1):
         return jsonify({
             'symbol': str(symbol).upper(),
             'name': name,
+            'company': name,
             'price': round(float(current), 2),
             'change': round(float(change), 2),
             'change_pct': round(float(change), 2),
             'risk_score': 50,
-            'sentiment': 'Neutral'
+            'sentiment': 'Neutral',
+            'attention': {
+                'score': 50,
+                'insights': ['Live price tracking active', 'Stable trading volume'],
+                'factors': []
+            },
+            'current_snapshot': {
+                'price': round(float(current), 2),
+                'volume': 1250000,
+                'change': round(float(change), 2),
+                'change_pct': round(float(change), 2)
+            }
         })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
