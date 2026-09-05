@@ -334,36 +334,115 @@ def get_market_statistics():
         ]
     })
 
+try:
+    from app.core.stock_catalog import STOCK_CATALOG
+except Exception:
+    STOCK_CATALOG = [
+        {'symbol': 'RELIANCE.NS', 'name': 'Reliance Industries', 'sector': 'Energy', 'country': 'India', 'price': 1322.0, 'change': 12.5, 'change_pct': 0.95, 'volume': '12M', 'risk_score': 35},
+        {'symbol': 'TCS.NS', 'name': 'Tata Consultancy Services', 'sector': 'Technology', 'country': 'India', 'price': 2304.0, 'change': -15.0, 'change_pct': -0.65, 'volume': '8M', 'risk_score': 42},
+        {'symbol': 'HDFCBANK.NS', 'name': 'HDFC Bank', 'sector': 'Financial', 'country': 'India', 'price': 712.10, 'change': 5.2, 'change_pct': 0.74, 'volume': '15M', 'risk_score': 38},
+        {'symbol': 'INFY.NS', 'name': 'Infosys', 'sector': 'Technology', 'country': 'India', 'price': 1130.0, 'change': 8.4, 'change_pct': 0.75, 'volume': '10M', 'risk_score': 40},
+        {'symbol': 'AAPL', 'name': 'Apple Inc.', 'sector': 'Technology', 'country': 'US', 'price': 224.50, 'change': 3.2, 'change_pct': 1.44, 'volume': '45M', 'risk_score': 30},
+        {'symbol': 'NVDA', 'name': 'NVIDIA Corp', 'sector': 'Technology', 'country': 'US', 'price': 118.20, 'change': 4.1, 'change_pct': 3.59, 'volume': '85M', 'risk_score': 65},
+    ]
+
+from concurrent.futures import ThreadPoolExecutor
+
+@app.route('/stocks/sectors', methods=['GET'])
+@app.route('/v1/stocks/sectors', methods=['GET'])
+@app.route('/api/stocks/sectors', methods=['GET'])
+@app.route('/api/v1/stocks/sectors', methods=['GET'])
+def get_sectors():
+    sectors = sorted(list(set(s.get('sector') for s in STOCK_CATALOG if s.get('sector'))))
+    return jsonify({'sectors': sectors})
+
 @app.route('/stocks', methods=['GET'])
 @app.route('/v1/stocks', methods=['GET'])
 @app.route('/api/stocks', methods=['GET'])
 @app.route('/api/v1/stocks', methods=['GET'])
 def get_stocks():
-    """Get list of stocks"""
-    stocks = [
-        {'symbol': 'AAPL', 'name': 'Apple Inc.'},
-        {'symbol': 'TSLA', 'name': 'Tesla Inc.'},
-        {'symbol': 'NVDA', 'name': 'NVIDIA Corp'},
-        {'symbol': 'META', 'name': 'Meta Inc.'},
-        {'symbol': 'AMZN', 'name': 'Amazon Inc.'},
-        {'symbol': 'GOOGL', 'name': 'Alphabet Inc.'},
-        {'symbol': 'MSFT', 'name': 'Microsoft'},
-        {'symbol': 'AMD', 'name': 'AMD Inc.'},
-        {'symbol': 'RELIANCE.NS', 'name': 'Reliance Industries'},
-        {'symbol': 'TCS.NS', 'name': 'Tata Consultancy Services'},
-        {'symbol': 'HDFCBANK.NS', 'name': 'HDFC Bank'},
-        {'symbol': 'INFY.NS', 'name': 'Infosys'},
-        {'symbol': 'WIPRO.NS', 'name': 'Wipro'},
-        {'symbol': 'ITC.NS', 'name': 'ITC Limited'},
-        {'symbol': 'SUNPHARMA.NS', 'name': 'Sun Pharma'},
-        {'symbol': 'AXISBANK.NS', 'name': 'Axis Bank'},
-        {'symbol': 'BHARTIARTL.NS', 'name': 'Bharti Airtel'},
-        {'symbol': 'KOTAKBANK.NS', 'name': 'Kotak Mahindra Bank'},
-        {'symbol': 'LT.NS', 'name': 'Larsen & Toubro'},
-        {'symbol': 'HINDUNILVR.NS', 'name': 'Hindustan Unilever'},
-    ]
-    
-    return jsonify({'data': stocks, 'results': stocks, 'total': len(stocks)})
+    """Get paginated list of stocks with live market prices and catalog fallbacks"""
+    page = int(request.args.get('page', 1))
+    per_page = int(request.args.get('per_page', 15))
+    sector = request.args.get('sector')
+    sort_by = request.args.get('sort_by', 'symbol')
+    q = request.args.get('q')
+    market = request.args.get('market')
+
+    filtered = list(STOCK_CATALOG)
+
+    # Filter by market (India vs US)
+    if market:
+        m = str(market).lower()
+        if m in ('india', 'in'):
+            filtered = [s for s in filtered if s.get('country') == 'India' or s['symbol'].endswith('.NS')]
+        elif m in ('us', 'usa'):
+            filtered = [s for s in filtered if s.get('country') != 'India' and not s['symbol'].endswith('.NS')]
+
+    # Filter by query string
+    if q and str(q).strip():
+        query_str = str(q).strip().upper()
+        filtered = [s for s in filtered if query_str in s['symbol'].upper() or query_str in s['name'].upper() or query_str in s.get('sector', '').upper()]
+
+    # Filter by sector
+    if sector and sector != 'All Sectors':
+        filtered = [s for s in filtered if s.get('sector', '').lower() == sector.lower()]
+
+    # Sorting
+    if sort_by in ('change', 'change_pct'):
+        filtered = sorted(filtered, key=lambda x: x.get('change_pct') if x.get('change_pct') is not None else (x.get('change') or 0), reverse=True)
+    elif sort_by == 'price':
+        filtered = sorted(filtered, key=lambda x: x.get('price') or 0, reverse=True)
+    elif sort_by in ('risk', 'risk_score'):
+        filtered = sorted(filtered, key=lambda x: x.get('risk_score') or 50, reverse=True)
+    elif sort_by == 'volume':
+        def parse_vol_num(v):
+            if isinstance(v, (int, float)): return float(v)
+            if isinstance(v, str):
+                v_clean = v.replace('M', '').replace('K', '').replace('B', '').strip()
+                try:
+                    mult = 1_000_000_000 if 'B' in v else (1_000_000 if 'M' in v else (1_000 if 'K' in v else 1))
+                    return float(v_clean) * mult
+                except: return 0.0
+            return 0.0
+        filtered = sorted(filtered, key=lambda x: parse_vol_num(x.get('volume')), reverse=True)
+    else:
+        filtered = sorted(filtered, key=lambda x: x.get('symbol'))
+
+    total = len(filtered)
+    start = (page - 1) * per_page
+    end = start + per_page
+    paged_data = filtered[start:end]
+    total_pages = max(1, (total + per_page - 1) // per_page)
+
+    def _enrich_single_stock(item):
+        item_copy = dict(item)
+        try:
+            live = fetch_live_quote(item['symbol'])
+            if live and live.get('price'):
+                item_copy['price'] = live['price']
+                item_copy['change'] = live.get('change', item_copy.get('change', 0.0))
+                item_copy['change_pct'] = live.get('change_pct', item_copy.get('change_pct', 0.0))
+                item_copy['volume'] = live.get('volume', item_copy.get('volume'))
+                if live.get('name'):
+                    item_copy['name'] = live['name']
+                pct = abs(live.get('change_pct', 0.0))
+                item_copy['risk_score'] = min(95, max(15, int(35 + pct * 12)))
+        except Exception:
+            pass
+        return item_copy
+
+    with ThreadPoolExecutor(max_workers=10) as executor:
+        enriched_data = list(executor.map(_enrich_single_stock, paged_data))
+
+    return jsonify({
+        'data': enriched_data,
+        'results': enriched_data,
+        'total': total,
+        'page': page,
+        'per_page': per_page,
+        'total_pages': total_pages
+    })
 
 @app.route('/', methods=['GET', 'POST', 'DELETE', 'OPTIONS', 'PUT'])
 @app.route('/index.html', methods=['GET'])
@@ -400,7 +479,9 @@ def catch_all(path=''):
         return get_watchlist()
     elif clean_path.startswith('/stocks/') or clean_path.startswith('/stock/'):
         parts = clean_path.split('/')
-        if 'search' in clean_path or 'recommendations' in clean_path or 'sectors' in clean_path:
+        if 'sectors' in clean_path:
+            return get_sectors()
+        elif 'search' in clean_path or 'recommendations' in clean_path:
             return get_stocks()
         symbol = parts[-1] if len(parts) > 1 else 'AAPL'
         if symbol == 'chart':
