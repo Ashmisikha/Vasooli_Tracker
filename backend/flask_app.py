@@ -136,6 +136,8 @@ def get_current_watchlist_symbols():
 @app.route('/api/v1/watchlists/<wl_id>', methods=['GET'])
 def get_watchlist(wl_id=1):
     """Get watchlist with live catalog/quote resolution"""
+    if 'text/html' in request.headers.get('Accept', '') and not request.path.startswith('/api/') and not request.path.startswith('/v1/'):
+        return redirect('/')
     try:
         symbols = get_current_watchlist_symbols()
         
