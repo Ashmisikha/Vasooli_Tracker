@@ -120,4 +120,4 @@ LinkedIn: http://www.linkedin.com/in/ashmisikha-piri
 
 ### Lin[ks
 GitHub: https://github.com/Ashmisikha/Vasooli_Tracker
-Live Demo: https://vasooli-tracker-git-main-ashmisikha1.vercel.app/
+Live Demo: https://vasooli-tracker-inky.vercel.app/
