@@ -670,11 +670,19 @@ def get_market_index_chart_route():
         'chart': chart
     })
 
+@app.route('/market/indices/chart', methods=['GET'])
+@app.route('/v1/market/indices/chart', methods=['GET'])
+@app.route('/api/market/indices/chart', methods=['GET'])
+@app.route('/api/v1/market/indices/chart', methods=['GET'])
 @app.route('/market/indices', methods=['GET'])
 @app.route('/v1/market/indices', methods=['GET'])
 @app.route('/api/market/indices', methods=['GET'])
 @app.route('/api/v1/market/indices', methods=['GET'])
 def get_market_indices_route():
+    raw_path = request.path or ''
+    req_path_param = request.args.get('path', '')
+    if 'chart' in raw_path or 'index' in request.args or 'chart' in req_path_param:
+        return get_market_index_chart_route()
     market = request.args.get('market', 'india')
     indices_list = list(INDICES_DATA.values())
     return jsonify({
