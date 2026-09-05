@@ -1103,6 +1103,8 @@ def catch_all(path=''):
 
     if clean_path in ['/health', '/api/health', '/v1/health']:
         return health_check()
+    elif 'chart' in clean_path and ('indices' in clean_path or 'index' in clean_path or 'market' in clean_path) and not clean_path.startswith('/stock'):
+        return get_market_index_chart_route()
     elif 'analysis/watchlist' in clean_path:
         return get_watchlist_analysis()
     elif 'watchlist' in clean_path:
