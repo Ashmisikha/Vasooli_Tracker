@@ -325,7 +325,11 @@ def catch_all(path=''):
     # Handle static JS, CSS, and media assets with proper MIME types
     raw_path = path.lstrip('/')
     if raw_path.startswith('assets/') or any(raw_path.endswith(ext) for ext in ['.js', '.css', '.png', '.jpg', '.jpeg', '.svg', '.ico', '.woff', '.woff2', '.ttf']):
-        for base in [os.path.join(base_dir, 'dist'), os.path.join(base_dir, 'frontend', 'dist')]:
+        for base in [
+            os.path.join(base_dir, 'dist'),
+            os.path.join(base_dir, 'frontend', 'dist'),
+            base_dir
+        ]:
             file_path = os.path.join(base, raw_path)
             if os.path.exists(file_path):
                 import mimetypes
@@ -339,6 +343,20 @@ def catch_all(path=''):
                         return f.read(), 200, {'Content-Type': mime_type or 'application/octet-stream'}
                 except Exception:
                     pass
+
+        # Fallback for JS assets if exact hash filename changed
+        if raw_path.endswith('.js'):
+            for base in [os.path.join(base_dir, 'dist', 'assets'), os.path.join(base_dir, 'frontend', 'dist', 'assets')]:
+                if os.path.exists(base):
+                    js_files = [f for f in os.listdir(base) if f.endswith('.js')]
+                    if js_files:
+                        target = os.path.join(base, js_files[0])
+                        try:
+                            with open(target, 'rb') as f:
+                                return f.read(), 200, {'Content-Type': 'application/javascript'}
+                        except Exception:
+                            pass
+
         return jsonify({'error': 'Asset not found'}), 404
 
     # If request is for root or non-API route, attempt to serve built index.html SPA
