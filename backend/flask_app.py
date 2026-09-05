@@ -359,8 +359,17 @@ def get_stock_chart_route(symbol='AAPL'):
 def analyze_stock(symbol='AAPL', wl_id=1):
     """Analyze a stock - full analytics and detail engine"""
     try:
-        sym = str(symbol).strip().upper()
-        if sym in ('CHART', 'SECTORS', 'SEARCH', 'RECOMMENDATIONS'):
+        raw_sym = str(symbol).strip().upper()
+        if 'CHART' in raw_sym:
+            actual_sym = raw_sym.split('/')[0]
+            if actual_sym in ('STOCKS', 'STOCK', 'API', 'V1', 'CHART'):
+                actual_sym = 'AAPL'
+            return get_stock_chart_route(actual_sym)
+        elif 'SECTORS' in raw_sym:
+            return get_sectors()
+            
+        sym = raw_sym
+        if sym in ('STOCKS', 'STOCK', 'SEARCH', 'RECOMMENDATIONS'):
             sym = 'AAPL'
         matching = next((s for s in STOCK_CATALOG if s['symbol'].upper() == sym), None)
 
