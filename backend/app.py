@@ -274,7 +274,9 @@ def get_stocks():
     
     return jsonify({'data': stocks, 'results': stocks, 'total': len(stocks)})
 
-@app.route('/<path:path>', methods=['GET', 'POST', 'DELETE', 'OPTIONS', 'PUT'])
+@app.route('/api/<path:path>', methods=['GET', 'POST', 'DELETE', 'OPTIONS', 'PUT'])
+@app.route('/api/v1/<path:path>', methods=['GET', 'POST', 'DELETE', 'OPTIONS', 'PUT'])
+@app.route('/v1/<path:path>', methods=['GET', 'POST', 'DELETE', 'OPTIONS', 'PUT'])
 def catch_all(path):
     """Catch-all router to handle any path format from Vercel serverless rewrites"""
     if request.method == 'OPTIONS':
