@@ -26,6 +26,8 @@ def is_cache_valid(key):
 
 # ============= API ENDPOINTS =============
 
+@app.route('/health', methods=['GET'])
+@app.route('/v1/health', methods=['GET'])
 @app.route('/api/health', methods=['GET'])
 @app.route('/api/v1/health', methods=['GET'])
 def health_check():
@@ -36,6 +38,12 @@ def health_check():
         'message': 'Vasooli Tracker API is running'
     })
 
+@app.route('/watchlist', methods=['GET'])
+@app.route('/watchlists', methods=['GET'])
+@app.route('/watchlists/<wl_id>', methods=['GET'])
+@app.route('/v1/watchlist', methods=['GET'])
+@app.route('/v1/watchlists', methods=['GET'])
+@app.route('/v1/watchlists/<wl_id>', methods=['GET'])
 @app.route('/api/watchlist', methods=['GET'])
 @app.route('/api/v1/watchlist', methods=['GET'])
 @app.route('/api/v1/watchlists', methods=['GET'])
@@ -43,17 +51,15 @@ def health_check():
 def get_watchlist(wl_id=1):
     """Get watchlist with cached data"""
     try:
-        # Check cache
         if is_cache_valid('watchlist'):
             return jsonify(cache['watchlist'])
         
-        # Try importing yfinance with safe fallback
         data = []
         try:
             import yfinance as yf
             symbols = ['AAPL', 'TSLA', 'NVDA', 'META', 'AMZN', 'GOOGL']
             
-            for symbol in symbols[:5]:  # Limit to 5 for speed
+            for symbol in symbols[:5]:
                 try:
                     ticker = yf.Ticker(symbol)
                     hist = ticker.history(period="2d")
@@ -77,7 +83,6 @@ def get_watchlist(wl_id=1):
         except Exception:
             pass
 
-        # Fallback default stocks if yfinance fetch is empty/slow
         if not data:
             data = [
                 {'symbol': 'RELIANCE.NS', 'name': 'Reliance Industries', 'company': 'Reliance Industries', 'price': 2450.0, 'change': 0.8, 'change_pct': 0.8},
@@ -96,7 +101,6 @@ def get_watchlist(wl_id=1):
             'count': len(data)
         }
         
-        # Cache the response
         cache['watchlist'] = response
         cache_time['watchlist'] = datetime.now()
         
@@ -114,6 +118,14 @@ def get_watchlist(wl_id=1):
             'warning': 'Using empty fallback'
         }), 200
 
+@app.route('/watchlist', methods=['POST'])
+@app.route('/watchlists', methods=['POST'])
+@app.route('/watchlists/<wl_id>/stocks', methods=['POST'])
+@app.route('/watchlists/stocks', methods=['POST'])
+@app.route('/v1/watchlist', methods=['POST'])
+@app.route('/v1/watchlists', methods=['POST'])
+@app.route('/v1/watchlists/<wl_id>/stocks', methods=['POST'])
+@app.route('/v1/watchlists/stocks', methods=['POST'])
 @app.route('/api/watchlist', methods=['POST'])
 @app.route('/api/v1/watchlist', methods=['POST'])
 @app.route('/api/v1/watchlists', methods=['POST'])
@@ -139,6 +151,10 @@ def add_to_watchlist(wl_id=1):
         'symbol': symbol
     }), 200
 
+@app.route('/watchlist/<symbol>', methods=['DELETE'])
+@app.route('/watchlists/<wl_id>/stocks/<symbol>', methods=['DELETE'])
+@app.route('/v1/watchlist/<symbol>', methods=['DELETE'])
+@app.route('/v1/watchlists/<wl_id>/stocks/<symbol>', methods=['DELETE'])
 @app.route('/api/watchlist/<symbol>', methods=['DELETE'])
 @app.route('/api/v1/watchlist/<symbol>', methods=['DELETE'])
 @app.route('/api/v1/watchlists/<wl_id>/stocks/<symbol>', methods=['DELETE'])
@@ -150,14 +166,19 @@ def remove_from_watchlist(symbol, wl_id=1):
     
     return jsonify({'success': True, 'message': f'{sym} removed', 'symbol': sym}), 200
 
+@app.route('/analyze/<symbol>', methods=['GET'])
+@app.route('/v1/analyze/<symbol>', methods=['GET'])
+@app.route('/analysis/watchlist/<wl_id>', methods=['GET'])
+@app.route('/v1/analysis/watchlist/<wl_id>', methods=['GET'])
 @app.route('/api/analyze/<symbol>', methods=['GET'])
 @app.route('/api/v1/analyze/<symbol>', methods=['GET'])
-def analyze_stock(symbol):
+@app.route('/api/v1/analysis/watchlist/<wl_id>', methods=['GET'])
+def analyze_stock(symbol='AAPL', wl_id=1):
     """Analyze a stock - lightweight version"""
     try:
         current = 150.0
         change = 0.5
-        name = symbol.upper()
+        name = str(symbol).upper()
         
         try:
             import yfinance as yf
@@ -174,7 +195,7 @@ def analyze_stock(symbol):
             pass
 
         return jsonify({
-            'symbol': symbol.upper(),
+            'symbol': str(symbol).upper(),
             'name': name,
             'price': round(float(current), 2),
             'change': round(float(change), 2),
@@ -185,8 +206,25 @@ def analyze_stock(symbol):
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+@app.route('/market/statistics', methods=['GET'])
+@app.route('/market/indices', methods=['GET'])
+@app.route('/market/signal', methods=['GET'])
+@app.route('/market-analysis/insights', methods=['GET'])
+@app.route('/market-analysis/risk-dynamics', methods=['GET'])
+@app.route('/watchlist/what-changed', methods=['GET'])
+@app.route('/v1/market/statistics', methods=['GET'])
+@app.route('/v1/market/indices', methods=['GET'])
+@app.route('/v1/market/signal', methods=['GET'])
+@app.route('/v1/market-analysis/insights', methods=['GET'])
+@app.route('/v1/market-analysis/risk-dynamics', methods=['GET'])
+@app.route('/v1/watchlist/what-changed', methods=['GET'])
 @app.route('/api/market/statistics', methods=['GET'])
 @app.route('/api/v1/market/statistics', methods=['GET'])
+@app.route('/api/v1/market/indices', methods=['GET'])
+@app.route('/api/v1/market/signal', methods=['GET'])
+@app.route('/api/v1/market-analysis/insights', methods=['GET'])
+@app.route('/api/v1/market-analysis/risk-dynamics', methods=['GET'])
+@app.route('/api/v1/watchlist/what-changed', methods=['GET'])
 def get_market_statistics():
     """Get market statistics - lightweight"""
     return jsonify({
@@ -198,9 +236,15 @@ def get_market_statistics():
         'declining_pct': 35.0,
         'unchanged_pct': 5.0,
         'breadth_ratio': 1.71,
-        'market_sentiment': 'Moderately Bullish'
+        'market_sentiment': 'Moderately Bullish',
+        'indices': [
+            {'name': 'NIFTY 50', 'value': 19456.25, 'change': 0.42},
+            {'name': 'SENSEX', 'value': 65432.10, 'change': 0.38}
+        ]
     })
 
+@app.route('/stocks', methods=['GET'])
+@app.route('/v1/stocks', methods=['GET'])
 @app.route('/api/stocks', methods=['GET'])
 @app.route('/api/v1/stocks', methods=['GET'])
 def get_stocks():
@@ -231,6 +275,7 @@ def get_stocks():
     return jsonify({'data': stocks, 'results': stocks, 'total': len(stocks)})
 
 @app.route('/', methods=['GET'])
+@app.route('/index.html', methods=['GET'])
 def root():
     """Root endpoint for health check"""
     return jsonify({
