@@ -107,10 +107,10 @@ export default function AddStockModal({ isOpen, onClose, onAddStock, onAdd, onSu
       e.preventDefault();
       if (selectedIndex >= 0 && recommendations[selectedIndex]) {
         handleAddAction(recommendations[selectedIndex]);
+      } else if (search.trim()) {
+        handleAddAction(search.trim());
       } else if (recommendations.length > 0) {
         handleAddAction(recommendations[0]);
-      } else {
-        setError('No valid stock found. Random text cannot be added to your watchlist.');
       }
     }
   };
@@ -302,16 +302,30 @@ export default function AddStockModal({ isOpen, onClose, onAddStock, onAdd, onSu
                   })}
                 </div>
               ) : (
-                <div className="text-center py-8 px-4 bg-rose-50/60 dark:bg-rose-950/20 rounded-2xl border border-dashed border-rose-200 dark:border-rose-800">
-                  <div className="w-10 h-10 rounded-full bg-rose-100 dark:bg-rose-900/40 text-rose-500 flex items-center justify-center mx-auto mb-2.5">
-                    <AlertCircle className="w-5 h-5" />
+                <div className="text-center py-6 px-4 bg-emerald-50/60 dark:bg-emerald-950/20 rounded-2xl border border-dashed border-emerald-200 dark:border-emerald-800">
+                  <div className="w-10 h-10 rounded-full bg-emerald-100 dark:bg-emerald-900/40 text-[#0ECB81] flex items-center justify-center mx-auto mb-2.5">
+                    <Sparkles className="w-5 h-5" />
                   </div>
                   <p className="text-sm font-bold text-[#1A1A2E] dark:text-white mb-1">
-                    No matching stock for "{search}"
+                    Add "{search.trim().toUpperCase()}" to Watchlist
                   </p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 max-w-sm mx-auto leading-relaxed">
-                    Arbitrary text and invalid symbols cannot be added. Please type a valid company name or stock ticker (e.g., <strong>RELIANCE</strong>, <strong>TCS</strong>, <strong>INFY</strong>, <strong>AAPL</strong>, <strong>NVDA</strong>).
+                  <p className="text-xs text-gray-500 dark:text-gray-400 max-w-sm mx-auto mb-4 leading-relaxed">
+                    Instantly extract live market data, calculate risk scores, and track price changes for {search.trim().toUpperCase()}.
                   </p>
+                  <button
+                    type="button"
+                    onClick={() => handleAddAction(search.trim())}
+                    disabled={addingSymbol === search.trim().toUpperCase()}
+                    className="px-5 py-2 bg-[#0ECB81] hover:bg-[#0A8C5A] text-white rounded-xl font-bold text-xs transition cursor-pointer shadow-md flex items-center gap-2 mx-auto"
+                  >
+                    {addingSymbol === search.trim().toUpperCase() ? (
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <>
+                        <Plus className="w-4 h-4" /> Add {search.trim().toUpperCase()} Now
+                      </>
+                    )}
+                  </button>
                 </div>
               )}
             </div>

@@ -80,7 +80,11 @@ export async function fetchWatchlist(userId = 'default') {
     let rawStocks = [];
     if (wlRes && wlRes.ok) {
       const wlData = await wlRes.json().catch(() => ({}));
-      rawStocks = wlData.stocks || [];
+      if (Array.isArray(wlData)) {
+        rawStocks = wlData.flatMap(item => (Array.isArray(item.stocks) ? item.stocks : [item]));
+      } else if (wlData && typeof wlData === 'object') {
+        rawStocks = wlData.stocks || wlData.data || wlData.watchlist || [];
+      }
     }
 
     let analysisItems = [];
