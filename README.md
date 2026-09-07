@@ -106,19 +106,20 @@ Click "Try Demo" to start using Vasooli Tracker.
 ### Live Demo: https://vasooli-tracker-inky.vercel.app/dashboard 
 ---
 ### Why This Is Different
--Attention Score — Prioritizes, not just tracks
--40% Sentiment Weight — News drives markets
--Transparent Factors — Users see WHY
--Since Last Check — State persistence
--No AI Overclaim — Honest about using TextBlob NLP
-
+___
+- Attention Score — Prioritizes, not just tracks
+- 40% Sentiment Weight — News drives markets
+- Transparent Factors — Users see WHY
+- Since Last Check — State persistence
+- No AI Overclaim — Honest about using TextBlob NLP
+___
 ### Team
 Ashmisikha Piri- RA2311056010222
 
-GitHub: https://github.com/Ashmisikha
-LinkedIn: http://www.linkedin.com/in/ashmisikha-piri
+- GitHub: https://github.com/Ashmisikha
+- LinkedIn: http://www.linkedin.com/in/ashmisikha-piri
 
 ### Links
-GitHub: https://github.com/Ashmisikha/Vasooli_Tracker
-Live Demo: https://vasooli-tracker-inky.vercel.app/
-Youtube video : https://youtu.be/pldDIhLMdmg
+- GitHub: https://github.com/Ashmisikha/Vasooli_Tracker
+- Live Demo: https://vasooli-tracker-inky.vercel.app/
+- Youtube video : https://youtu.be/pldDIhLMdmg
