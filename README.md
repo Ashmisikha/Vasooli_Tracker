@@ -118,6 +118,7 @@ Ashmisikha Piri- RA2311056010222
 GitHub: https://github.com/Ashmisikha
 LinkedIn: http://www.linkedin.com/in/ashmisikha-piri
 
-### Lin[ks
+### Links
 GitHub: https://github.com/Ashmisikha/Vasooli_Tracker
 Live Demo: https://vasooli-tracker-inky.vercel.app/
+Youtube video : https://youtu.be/pldDIhLMdmg
